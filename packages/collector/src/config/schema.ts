@@ -45,21 +45,19 @@ const filesystemSourceConfigSchema = z.object({
   options: filesystemOptionsSchema,
 });
 
-// AI Chat source
-const aiChatOptionsSchema = z.object({
-  providers: z.array(z.enum(['claude', 'chatgpt'])),
-  exportPaths: z
-    .object({
-      claude: z.string().optional(),
-      chatgpt: z.string().optional(),
-    })
-    .optional(),
+// Chatbot source
+const chatbotOptionsSchema = z.object({
+  clients: z.array(z.enum(['chatwise'])),
+  sinceDays: z.number().default(30),
+  includeContent: z.boolean().default(true),
+  maxMessagesPerChat: z.number().optional(),
+  excludeModels: z.array(z.string()).optional(),
 });
 
-const aiChatSourceConfigSchema = z.object({
+const chatbotSourceConfigSchema = z.object({
   enabled: z.boolean(),
   schedule: scheduleFrequencySchema,
-  options: aiChatOptionsSchema,
+  options: chatbotOptionsSchema,
 });
 
 // Sources config with defaults
@@ -67,7 +65,7 @@ const sourcesSchema = z.object({
   git: gitSourceConfigSchema,
   browser: browserSourceConfigSchema,
   filesystem: filesystemSourceConfigSchema,
-  'ai-chat': aiChatSourceConfigSchema,
+  chatbot: chatbotSourceConfigSchema,
 });
 
 // Default values defined once
@@ -93,10 +91,14 @@ const DEFAULT_SOURCES = {
       includeContent: true,
     },
   },
-  'ai-chat': {
+  chatbot: {
     enabled: false,
-    schedule: 'weekly' as const,
-    options: { providers: [] },
+    schedule: 'daily' as const,
+    options: {
+      clients: ['chatwise' as const],
+      sinceDays: 30,
+      includeContent: true,
+    },
   },
 } satisfies z.infer<typeof sourcesSchema>;
 

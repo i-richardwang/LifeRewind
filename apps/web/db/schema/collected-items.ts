@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
-export type SourceType = 'git' | 'browser' | 'filesystem' | 'ai-chat';
+export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot';
 
 export interface GitData {
   hash: string;
@@ -31,13 +31,26 @@ export interface FilesystemData {
   parentDirectory?: string;
 }
 
-export interface AiChatData {
-  provider: 'claude' | 'chatgpt';
-  conversationId: string;
-  messageCount: number;
+export interface ChatbotMessage {
+  id: string;
+  chatId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  model?: string;
+  createdAt: string;
+  files?: string[];
+  reasoningContent?: string;
 }
 
-export type CollectedItemData = GitData | BrowserData | FilesystemData | AiChatData;
+export interface ChatbotData {
+  client: 'chatwise';
+  sessionId: string;
+  sessionTitle: string;
+  model?: string;
+  messages: ChatbotMessage[];
+}
+
+export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData;
 
 export const collectedItems = pgTable(
   'collected_items',

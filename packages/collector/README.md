@@ -9,7 +9,7 @@ Background data collection service for LifeRewind. Collects digital footprints f
 | Git | ✅ Implemented | Git commit history |
 | Browser | ✅ Implemented | Browser history (Chrome, Safari, Arc, Dia, Comet) |
 | Filesystem | ✅ Implemented | Document change tracking (.md, .txt, .docx, .pdf, etc.) |
-| AI Chat | 🚧 Planned | Claude/ChatGPT conversations |
+| Chatbot | ✅ Implemented | Local AI chatbot history (ChatWise) |
 
 ## Configuration
 
@@ -39,6 +39,15 @@ Create `collector.config.json` (see `collector.config.example.json`):
         "excludePatterns": ["**/node_modules/**", "**/.git/**"],
         "fileTypes": [".md", ".txt", ".docx", ".pdf"],
         "sinceDays": 7,
+        "includeContent": true
+      }
+    },
+    "chatbot": {
+      "enabled": true,
+      "schedule": "daily",
+      "options": {
+        "clients": ["chatwise"],
+        "sinceDays": 30,
         "includeContent": true
       }
     }
@@ -128,7 +137,15 @@ src/
 ├── sources/
 │   ├── base.ts       # DataSource base class
 │   ├── registry.ts   # Source registry
-│   └── git/          # Git data source
+│   ├── git/          # Git data source
+│   ├── browser/      # Browser history (multi-browser)
+│   ├── filesystem/   # Filesystem changes
+│   └── chatbot/      # Chatbot history (multi-client)
+│       ├── index.ts
+│       ├── types.ts
+│       └── readers/
+│           ├── base.ts      # ChatbotReader base class
+│           └── chatwise.ts  # ChatWise implementation
 ├── api/
 │   └── client.ts     # API client
 ├── config/

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/db';
 import {
   collectedItems,
@@ -9,52 +10,86 @@ import {
 } from '@/db/schema';
 import { validateApiKey } from '@/lib/auth';
 
-interface GitCommitPayload {
-  hash: string;
-  repository: string;
-  authorName: string;
-  authorEmail: string;
-  date: string;
-  message: string;
-  stats: {
-    filesChanged: number;
-    insertions: number;
-    deletions: number;
-  };
-}
+// Zod schemas for request validation
+const gitCommitSchema = z.object({
+  hash: z.string(),
+  repository: z.string(),
+  authorName: z.string(),
+  authorEmail: z.string(),
+  date: z.string(),
+  message: z.string(),
+  stats: z.object({
+    filesChanged: z.number(),
+    insertions: z.number(),
+    deletions: z.number(),
+  }),
+});
 
-interface BrowserHistoryPayload {
-  url: string;
-  title: string;
-  visitTime: string;
-  visitCount: number;
-  browser: 'chrome' | 'safari' | 'arc' | 'dia' | 'comet';
-  profile?: string;
-}
+const browserHistorySchema = z.object({
+  url: z.string(),
+  title: z.string(),
+  visitTime: z.string(),
+  visitCount: z.number(),
+  browser: z.enum(['chrome', 'safari', 'arc', 'dia', 'comet']),
+  profile: z.string().optional(),
+});
 
-interface FilesystemPayload {
-  filePath: string;
-  fileName: string;
-  eventType: 'create' | 'modify' | 'delete';
-  modifiedAt: string;
-  fileSize: number;
-  extension: string;
-  mimeType?: string;
-  contentPreview?: string;
-  parentDirectory: string;
-}
+const filesystemSchema = z.object({
+  filePath: z.string(),
+  fileName: z.string(),
+  eventType: z.enum(['create', 'modify', 'delete']),
+  modifiedAt: z.string(),
+  fileSize: z.number(),
+  extension: z.string(),
+  mimeType: z.string().optional(),
+  contentPreview: z.string().optional(),
+  parentDirectory: z.string(),
+});
 
-interface CollectedItemPayload {
-  sourceType: SourceType;
-  timestamp: string;
-  data: GitCommitPayload | BrowserHistoryPayload | FilesystemPayload;
-}
+const chatbotMessageSchema = z.object({
+  id: z.string(),
+  chatId: z.string(),
+  role: z.enum(['user', 'assistant', 'system']),
+  content: z.string(),
+  model: z.string().optional(),
+  createdAt: z.string(),
+  files: z.array(z.string()).optional(),
+  reasoningContent: z.string().optional(),
+});
 
-interface IngestRequestBody {
-  sourceType: SourceType;
-  collectedAt: string;
-  items: CollectedItemPayload[];
-}
+const chatbotSchema = z.object({
+  client: z.literal('chatwise'),
+  session: z.object({
+    id: z.string(),
+    title: z.string(),
+    model: z.string().optional(),
+    createdAt: z.string(),
+    lastReplyAt: z.string(),
+    messageCount: z.number(),
+  }),
+  messages: z.array(chatbotMessageSchema),
+});
+
+const sourceTypeSchema = z.enum(['git', 'browser', 'filesystem', 'chatbot']);
+
+const collectedItemSchema = z.object({
+  sourceType: sourceTypeSchema,
+  timestamp: z.string(),
+  data: z.union([gitCommitSchema, browserHistorySchema, filesystemSchema, chatbotSchema]),
+});
+
+const ingestRequestSchema = z.object({
+  sourceType: sourceTypeSchema,
+  collectedAt: z.string(),
+  items: z.array(collectedItemSchema),
+});
+
+type GitCommitPayload = z.infer<typeof gitCommitSchema>;
+type BrowserHistoryPayload = z.infer<typeof browserHistorySchema>;
+type FilesystemPayload = z.infer<typeof filesystemSchema>;
+type ChatbotMessagePayload = z.infer<typeof chatbotMessageSchema>;
+type ChatbotPayload = z.infer<typeof chatbotSchema>;
+type CollectedItemPayload = z.infer<typeof collectedItemSchema>;
 
 function transformGitItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
   const data = item.data as GitCommitPayload;
@@ -122,6 +157,35 @@ function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date):
   };
 }
 
+function transformChatbotItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
+  const data = item.data as ChatbotPayload;
+
+  return {
+    sourceType: 'chatbot',
+    timestamp: new Date(data.session.lastReplyAt),
+    title: data.session.title,
+    url: null,
+    data: {
+      client: data.client,
+      sessionId: data.session.id,
+      sessionTitle: data.session.title,
+      model: data.session.model,
+      messages: data.messages.map((msg) => ({
+        id: msg.id,
+        chatId: msg.chatId,
+        role: msg.role,
+        content: msg.content,
+        model: msg.model,
+        createdAt: msg.createdAt,
+        files: msg.files,
+        reasoningContent: msg.reasoningContent,
+      })),
+    },
+    uniqueKey: `chatbot:${data.client}:${data.session.id}`,
+    collectedAt,
+  };
+}
+
 function transformItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
   switch (item.sourceType) {
     case 'git':
@@ -130,8 +194,10 @@ function transformItem(item: CollectedItemPayload, collectedAt: Date): NewCollec
       return transformBrowserItem(item, collectedAt);
     case 'filesystem':
       return transformFilesystemItem(item, collectedAt);
+    case 'chatbot':
+      return transformChatbotItem(item, collectedAt);
     default: {
-      // For future data sources (e.g., ai-chat), generate a generic unique key
+      // Fallback for future data sources
       const itemTimestamp = new Date(item.timestamp);
       return {
         sourceType: item.sourceType,
@@ -153,16 +219,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body: IngestRequestBody = await request.json();
-    const { sourceType, collectedAt, items } = body;
+    const rawBody: unknown = await request.json();
+    const parseResult = ingestRequestSchema.safeParse(rawBody);
 
-    if (!sourceType || !collectedAt || !Array.isArray(items)) {
+    if (!parseResult.success) {
+      const errors = parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
       return NextResponse.json(
-        { success: false, error: 'Invalid request body' },
+        { success: false, error: 'Validation failed', details: errors },
         { status: 400 }
       );
     }
 
+    const { sourceType, collectedAt, items } = parseResult.data;
     const collectedAtDate = new Date(collectedAt);
     const transformedItems = items.map((item) => transformItem(item, collectedAtDate));
 

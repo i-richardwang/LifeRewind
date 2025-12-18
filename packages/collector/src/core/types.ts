@@ -1,5 +1,5 @@
 /** Unique identifier for each data source type */
-export type SourceType = 'git' | 'browser' | 'filesystem' | 'ai-chat';
+export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot';
 
 /** Schedule frequency for data collection */
 export type ScheduleFrequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'manual';
