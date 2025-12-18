@@ -18,7 +18,10 @@ export abstract class DataSource<TOptions = unknown> {
     this.context = context;
   }
 
-  /** Source-specific options, cast to the concrete type */
+  /**
+   * Source-specific options, cast to the concrete type.
+   * Type assertion is safe because options are validated by Zod schema in config loader.
+   */
   protected get options(): TOptions {
     return this.config.options as TOptions;
   }

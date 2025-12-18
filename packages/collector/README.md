@@ -8,7 +8,7 @@ Background data collection service for LifeRewind. Collects digital footprints f
 |------|--------|-------------|
 | Git | ✅ Implemented | Git commit history |
 | Browser | ✅ Implemented | Browser history (Chrome, Safari, Arc, Dia, Comet) |
-| Filesystem | 🚧 Planned | File change tracking |
+| Filesystem | ✅ Implemented | Document change tracking (.md, .txt, .docx, .pdf, etc.) |
 | AI Chat | 🚧 Planned | Claude/ChatGPT conversations |
 
 ## Configuration
@@ -26,13 +26,27 @@ Create `collector.config.json` (see `collector.config.example.json`):
       "enabled": true,
       "schedule": "daily",
       "options": {
-        "repositories": ["~/Projects/my-project"],
+        "scanPaths": ["~/Documents", "~/Projects"],
+        "excludeRepositories": [],
         "sinceDays": 30
+      }
+    },
+    "filesystem": {
+      "enabled": true,
+      "schedule": "daily",
+      "options": {
+        "watchPaths": ["~/Documents"],
+        "excludePatterns": ["**/node_modules/**", "**/.git/**"],
+        "fileTypes": [".md", ".txt", ".docx", ".pdf"],
+        "sinceDays": 7,
+        "includeContent": true
       }
     }
   }
 }
 ```
+
+**Note:** Git repositories are automatically excluded from filesystem scanning.
 
 Config file lookup order:
 1. `./collector.config.json`

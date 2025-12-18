@@ -4,12 +4,13 @@ import { createLogger } from './utils/logger.js';
 import { sourceRegistry } from './sources/registry.js';
 import { GitSource } from './sources/git/index.js';
 import { BrowserSource } from './sources/browser/index.js';
+import { FilesystemSource } from './sources/filesystem/index.js';
 
 function registerBuiltinSources(): void {
   sourceRegistry.register('git', (config, ctx) => new GitSource(config, ctx));
   sourceRegistry.register('browser', (config, ctx) => new BrowserSource(config, ctx));
+  sourceRegistry.register('filesystem', (config, ctx) => new FilesystemSource(config, ctx));
   // Future sources will be registered here:
-  // sourceRegistry.register('filesystem', (config, ctx) => new FilesystemSource(config, ctx));
   // sourceRegistry.register('ai-chat', (config, ctx) => new AIChatSource(config, ctx));
 }
 

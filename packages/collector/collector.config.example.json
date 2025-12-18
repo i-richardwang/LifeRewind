@@ -10,9 +10,8 @@
       "enabled": true,
       "schedule": "daily",
       "options": {
-        "repositories": [
-          "~/Projects/my-project"
-        ],
+        "scanPaths": ["~/Documents", "~/Projects"],
+        "excludeRepositories": [],
         "authors": [],
         "sinceDays": 30
       }
@@ -30,9 +29,11 @@
       "enabled": false,
       "schedule": "daily",
       "options": {
-        "watchPaths": [],
-        "excludePatterns": ["**/node_modules/**", "**/.git/**"],
-        "fileTypes": [".md", ".txt"]
+        "watchPaths": ["~/Documents", "~/Desktop"],
+        "excludePatterns": ["**/node_modules/**", "**/.git/**", "**/Library/**"],
+        "fileTypes": [".md", ".txt", ".docx", ".pptx", ".xlsx", ".pdf"],
+        "sinceDays": 7,
+        "includeContent": true
       }
     },
     "ai-chat": {

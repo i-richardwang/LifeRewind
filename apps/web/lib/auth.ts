@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { NextRequest } from 'next/server';
 
 export function validateApiKey(request: NextRequest): boolean {
@@ -15,5 +16,10 @@ export function validateApiKey(request: NextRequest): boolean {
     return false;
   }
 
-  return token === apiKey;
+  // Use constant-time comparison to prevent timing attacks
+  if (token.length !== apiKey.length) {
+    return false;
+  }
+
+  return timingSafeEqual(Buffer.from(token), Buffer.from(apiKey));
 }

@@ -25,6 +25,10 @@ export interface FilesystemData {
   filePath: string;
   eventType: 'create' | 'modify' | 'delete';
   fileSize?: number;
+  extension?: string;
+  mimeType?: string;
+  contentPreview?: string;
+  parentDirectory?: string;
 }
 
 export interface AiChatData {

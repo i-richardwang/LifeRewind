@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { collectedItems, collectionLogs, type SourceType, type NewCollectedItem } from '@/db/schema';
+import {
+  collectedItems,
+  collectionLogs,
+  type SourceType,
+  type NewCollectedItem,
+  type CollectedItemData,
+} from '@/db/schema';
 import { validateApiKey } from '@/lib/auth';
 
 interface GitCommitPayload {
@@ -26,10 +32,22 @@ interface BrowserHistoryPayload {
   profile?: string;
 }
 
+interface FilesystemPayload {
+  filePath: string;
+  fileName: string;
+  eventType: 'create' | 'modify' | 'delete';
+  modifiedAt: string;
+  fileSize: number;
+  extension: string;
+  mimeType?: string;
+  contentPreview?: string;
+  parentDirectory: string;
+}
+
 interface CollectedItemPayload {
   sourceType: SourceType;
   timestamp: string;
-  data: GitCommitPayload | BrowserHistoryPayload;
+  data: GitCommitPayload | BrowserHistoryPayload | FilesystemPayload;
 }
 
 interface IngestRequestBody {
@@ -81,21 +99,46 @@ function transformBrowserItem(item: CollectedItemPayload, collectedAt: Date): Ne
   };
 }
 
+function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
+  const data = item.data as FilesystemPayload;
+  const modifiedTimestamp = new Date(data.modifiedAt);
+
+  return {
+    sourceType: 'filesystem',
+    timestamp: modifiedTimestamp,
+    title: data.fileName,
+    url: `file://${data.filePath}`,
+    data: {
+      filePath: data.filePath,
+      eventType: data.eventType,
+      fileSize: data.fileSize,
+      extension: data.extension,
+      mimeType: data.mimeType,
+      contentPreview: data.contentPreview,
+      parentDirectory: data.parentDirectory,
+    },
+    uniqueKey: `filesystem:${data.filePath}:${modifiedTimestamp.toISOString()}`,
+    collectedAt,
+  };
+}
+
 function transformItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
   switch (item.sourceType) {
     case 'git':
       return transformGitItem(item, collectedAt);
     case 'browser':
       return transformBrowserItem(item, collectedAt);
+    case 'filesystem':
+      return transformFilesystemItem(item, collectedAt);
     default: {
-      // For future data sources, generate a generic unique key
+      // For future data sources (e.g., ai-chat), generate a generic unique key
       const itemTimestamp = new Date(item.timestamp);
       return {
         sourceType: item.sourceType,
         timestamp: itemTimestamp,
         title: null,
         url: null,
-        data: item.data as never,
+        data: item.data as CollectedItemData,
         uniqueKey: `${item.sourceType}:${itemTimestamp.toISOString()}:${JSON.stringify(item.data)}`,
         collectedAt,
       };

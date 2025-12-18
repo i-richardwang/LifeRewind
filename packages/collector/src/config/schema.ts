@@ -4,7 +4,8 @@ const scheduleFrequencySchema = z.enum(['hourly', 'daily', 'weekly', 'monthly', 
 
 // Git source
 const gitOptionsSchema = z.object({
-  repositories: z.array(z.string()),
+  scanPaths: z.array(z.string()),
+  excludeRepositories: z.array(z.string()).optional(),
   authors: z.array(z.string()).optional(),
   sinceDays: z.number(),
 });
@@ -33,6 +34,9 @@ const filesystemOptionsSchema = z.object({
   watchPaths: z.array(z.string()),
   excludePatterns: z.array(z.string()),
   fileTypes: z.array(z.string()).optional(),
+  sinceDays: z.number().default(7),
+  maxFileSize: z.number().optional(),
+  includeContent: z.boolean().default(true),
 });
 
 const filesystemSourceConfigSchema = z.object({
@@ -71,7 +75,7 @@ const DEFAULT_SOURCES = {
   git: {
     enabled: true,
     schedule: 'daily' as const,
-    options: { repositories: [], sinceDays: 30 },
+    options: { scanPaths: [], excludeRepositories: [], sinceDays: 30 },
   },
   browser: {
     enabled: false,
@@ -81,7 +85,13 @@ const DEFAULT_SOURCES = {
   filesystem: {
     enabled: false,
     schedule: 'daily' as const,
-    options: { watchPaths: [], excludePatterns: ['**/node_modules/**', '**/.git/**'] },
+    options: {
+      watchPaths: [],
+      excludePatterns: ['**/node_modules/**', '**/.git/**', '**/Library/**', '**/AppData/**'],
+      fileTypes: ['.md', '.txt', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.pdf', '.pages', '.numbers', '.key'],
+      sinceDays: 7,
+      includeContent: true,
+    },
   },
   'ai-chat': {
     enabled: false,

@@ -92,16 +92,16 @@ export abstract class BrowserReader {
       if (db) {
         try {
           db.close();
-        } catch {
-          // Ignore close errors
+        } catch (error) {
+          this.context.logger.debug('Failed to close database connection', error);
         }
       }
       // Clean up temp file
       if (existsSync(tempPath)) {
         try {
           unlinkSync(tempPath);
-        } catch {
-          // Ignore cleanup errors
+        } catch (error) {
+          this.context.logger.debug(`Failed to clean up temp file: ${tempPath}`, error);
         }
       }
     }
@@ -110,12 +110,12 @@ export abstract class BrowserReader {
   /** Type guard to validate raw SQL row structure */
   private isValidRow(row: unknown): row is RawHistoryRow {
     if (typeof row !== 'object' || row === null) return false;
-    const r = row as Record<string, unknown>;
+    const record = row as Record<string, unknown>;
     return (
-      typeof r['url'] === 'string' &&
-      (typeof r['title'] === 'string' || r['title'] === null) &&
-      typeof r['visit_count'] === 'number' &&
-      typeof r['visit_unix'] === 'number'
+      typeof record['url'] === 'string' &&
+      (typeof record['title'] === 'string' || record['title'] === null) &&
+      typeof record['visit_count'] === 'number' &&
+      typeof record['visit_unix'] === 'number'
     );
   }
 

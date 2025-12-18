@@ -34,7 +34,7 @@ export class SafariReader extends BrowserReader {
     `;
   }
 
-  getProfileName(): string | undefined {
+  getProfileName(_dbPath: string): string | undefined {
     // Safari doesn't have profiles
     return undefined;
   }

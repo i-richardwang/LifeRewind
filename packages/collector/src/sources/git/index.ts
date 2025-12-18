@@ -1,21 +1,16 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { homedir } from 'node:os';
 import { DataSource } from '../base.js';
 import type { CollectionResult } from '../../core/types.js';
 import type { GitCommit, GitSourceOptions } from './types.js';
-
-function expandPath(path: string): string {
-  if (path.startsWith('~/')) {
-    return resolve(homedir(), path.slice(2));
-  }
-  return resolve(path);
-}
+import { expandPath, isGitRepository } from '../../utils/path.js';
 
 export class GitSource extends DataSource<GitSourceOptions> {
   readonly type = 'git' as const;
   readonly name = 'Git Commits';
+
+  private discoveredRepos: string[] = [];
 
   async validate(): Promise<boolean> {
     try {
@@ -25,27 +20,67 @@ export class GitSource extends DataSource<GitSourceOptions> {
       return false;
     }
 
-    const validRepos: string[] = [];
-    for (const repoPath of this.options.repositories) {
-      const expanded = expandPath(repoPath);
-      if (!existsSync(expanded)) {
-        this.context.logger.warn(`Repository path does not exist: ${repoPath}`);
-        continue;
-      }
-      const gitDir = resolve(expanded, '.git');
-      if (!existsSync(gitDir)) {
-        this.context.logger.warn(`Not a git repository: ${repoPath}`);
-        continue;
-      }
-      validRepos.push(expanded);
-    }
-
-    if (validRepos.length === 0) {
-      this.context.logger.error('No valid git repositories found');
+    if (!this.options.scanPaths || this.options.scanPaths.length === 0) {
+      this.context.logger.error('No scan paths configured for git source');
       return false;
     }
 
+    // Discover all git repositories in scan paths
+    const excludeSet = new Set(
+      (this.options.excludeRepositories ?? []).map((p) => expandPath(p))
+    );
+
+    for (const scanPath of this.options.scanPaths) {
+      const expanded = expandPath(scanPath);
+      if (!existsSync(expanded)) {
+        this.context.logger.warn(`Scan path does not exist: ${scanPath}`);
+        continue;
+      }
+
+      const repos = this.discoverRepositories(expanded, excludeSet);
+      this.discoveredRepos.push(...repos);
+    }
+
+    if (this.discoveredRepos.length === 0) {
+      this.context.logger.error('No git repositories found in scan paths');
+      return false;
+    }
+
+    this.context.logger.info(`Discovered ${this.discoveredRepos.length} git repositories`);
     return true;
+  }
+
+  /** Recursively discover git repositories in a directory */
+  private discoverRepositories(dirPath: string, excludeSet: Set<string>): string[] {
+    const repos: string[] = [];
+
+    // Check if this directory itself is a git repo
+    if (isGitRepository(dirPath)) {
+      if (excludeSet.has(dirPath)) {
+        this.context.logger.debug(`Excluding repository: ${dirPath}`);
+      } else {
+        repos.push(dirPath);
+      }
+      // Don't recurse into git repos (nested repos are rare)
+      return repos;
+    }
+
+    // Scan subdirectories
+    try {
+      const entries = readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        // Skip hidden directories and common non-repo directories
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+
+        const subPath = resolve(dirPath, entry.name);
+        repos.push(...this.discoverRepositories(subPath, excludeSet));
+      }
+    } catch (error) {
+      this.context.logger.debug(`Cannot read directory: ${dirPath}`);
+    }
+
+    return repos;
   }
 
   async collect(): Promise<CollectionResult> {
@@ -53,10 +88,9 @@ export class GitSource extends DataSource<GitSourceOptions> {
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - this.options.sinceDays);
 
-    for (const repoPath of this.options.repositories) {
-      const expanded = expandPath(repoPath);
+    for (const repoPath of this.discoveredRepos) {
       try {
-        const commits = this.getCommitsFromRepo(expanded, sinceDate);
+        const commits = this.getCommitsFromRepo(repoPath, sinceDate);
         items.push(...commits);
         this.context.logger.debug(`Found ${commits.length} commits in ${repoPath}`);
       } catch (error) {
