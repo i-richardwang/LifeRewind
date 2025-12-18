@@ -17,7 +17,7 @@ const gitSourceConfigSchema = z.object({
 
 // Browser source
 const browserOptionsSchema = z.object({
-  browsers: z.array(z.enum(['chrome', 'safari', 'arc'])),
+  browsers: z.array(z.enum(['chrome', 'safari', 'arc', 'dia', 'comet'])),
   excludeDomains: z.array(z.string()),
   sinceDays: z.number(),
 });

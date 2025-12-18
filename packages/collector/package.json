@@ -19,10 +19,12 @@
     "./types": "./dist/core/types.js"
   },
   "dependencies": {
+    "better-sqlite3": "^12.5.0",
     "node-cron": "^3.0.3",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.19.9",
     "@types/node-cron": "^3.0.11",
     "@workspace/eslint-config": "workspace:*",

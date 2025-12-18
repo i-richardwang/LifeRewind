@@ -18,11 +18,11 @@
       }
     },
     "browser": {
-      "enabled": false,
+      "enabled": true,
       "schedule": "daily",
       "options": {
-        "browsers": ["chrome"],
-        "excludeDomains": ["localhost", "127.0.0.1"],
+        "browsers": ["chrome", "arc", "safari", "dia", "comet"],
+        "excludeDomains": ["localhost", "127.0.0.1", "google.com", "baidu.com"],
         "sinceDays": 7
       }
     },

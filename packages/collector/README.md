@@ -7,7 +7,7 @@ Background data collection service for LifeRewind. Collects digital footprints f
 | Type | Status | Description |
 |------|--------|-------------|
 | Git | ✅ Implemented | Git commit history |
-| Browser | 🚧 Planned | Browser history |
+| Browser | ✅ Implemented | Browser history (Chrome, Safari, Arc, Dia, Comet) |
 | Filesystem | 🚧 Planned | File change tracking |
 | AI Chat | 🚧 Planned | Claude/ChatGPT conversations |
 
