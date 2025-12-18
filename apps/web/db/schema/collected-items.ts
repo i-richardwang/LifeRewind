@@ -1,0 +1,60 @@
+import { pgTable, uuid, varchar, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+
+export type SourceType = 'git' | 'browser' | 'filesystem' | 'ai-chat';
+
+export interface GitData {
+  hash: string;
+  repository: string;
+  authorName: string;
+  authorEmail: string;
+  messageBody?: string;
+  stats: {
+    filesChanged: number;
+    insertions: number;
+    deletions: number;
+  };
+}
+
+export interface BrowserData {
+  browser: 'chrome' | 'safari' | 'arc' | 'dia' | 'comet';
+  profile?: string;
+  visitCount: number;
+}
+
+export interface FilesystemData {
+  filePath: string;
+  eventType: 'create' | 'modify' | 'delete';
+  fileSize?: number;
+}
+
+export interface AiChatData {
+  provider: 'claude' | 'chatgpt';
+  conversationId: string;
+  messageCount: number;
+}
+
+export type CollectedItemData = GitData | BrowserData | FilesystemData | AiChatData;
+
+export const collectedItems = pgTable(
+  'collected_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    sourceType: varchar('source_type', { length: 20 }).$type<SourceType>().notNull(),
+    timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
+    title: text('title'),
+    url: text('url'),
+    data: jsonb('data').$type<CollectedItemData>().notNull(),
+    uniqueKey: text('unique_key').notNull(),
+    collectedAt: timestamp('collected_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('idx_collected_items_timestamp').on(table.timestamp),
+    index('idx_collected_items_source_type').on(table.sourceType),
+    index('idx_collected_items_source_timestamp').on(table.sourceType, table.timestamp),
+    uniqueIndex('idx_collected_items_unique_key').on(table.uniqueKey),
+  ]
+);
+
+export type CollectedItem = typeof collectedItems.$inferSelect;
+export type NewCollectedItem = typeof collectedItems.$inferInsert;
