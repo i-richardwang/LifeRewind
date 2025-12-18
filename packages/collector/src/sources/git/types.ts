@@ -4,7 +4,7 @@ export interface GitCommit {
   authorName: string;
   authorEmail: string;
   date: string;
-  subject: string;
+  message: string; // Full commit message (subject + body)
   stats: {
     filesChanged: number;
     insertions: number;

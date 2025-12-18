@@ -87,7 +87,11 @@ export class GitSource extends DataSource<GitSourceOptions> {
 
   private getCommitsFromRepo(repoPath: string, since: Date): GitCommit[] {
     const sinceStr = since.toISOString().split('T')[0]!;
-    const format = '%H|%an|%ae|%at|%s';
+    // Use NULL (%x00) as field separator and record separator for safe parsing
+    // %B = full commit message (subject + body)
+    const fieldSep = '%x00';
+    const recordSep = '%x00%x00';
+    const format = `%H${fieldSep}%an${fieldSep}%ae${fieldSep}%at${fieldSep}%B${recordSep}`;
 
     const args = ['log', `--since=${sinceStr}`, `--format=${format}`];
     if (this.options.authors?.length) {
@@ -112,14 +116,21 @@ export class GitSource extends DataSource<GitSourceOptions> {
 
   private parseGitLog(output: string, repoPath: string): Omit<GitCommit, 'stats'>[] {
     const commits: Omit<GitCommit, 'stats'>[] = [];
-    const lines = output.trim().split('\n').filter(Boolean);
+    // Split by double NULL (record separator)
+    const records = output.split('\0\0').filter(Boolean);
 
-    for (const line of lines) {
-      const parts = line.split('|');
+    for (const record of records) {
+      // Split by single NULL (field separator)
+      const parts = record.split('\0');
       if (parts.length < 5) continue;
 
-      const [hash, authorName, authorEmail, timestamp, ...subjectParts] = parts;
+      const [rawHash, authorName, authorEmail, timestamp, ...messageParts] = parts;
+      // Trim hash to remove any leading/trailing whitespace (including newlines from %B)
+      const hash = rawHash?.trim();
       if (!hash || !authorName || !authorEmail || !timestamp) continue;
+
+      // Join message parts and trim whitespace
+      const message = messageParts.join('\0').trim();
 
       commits.push({
         hash,
@@ -127,7 +138,7 @@ export class GitSource extends DataSource<GitSourceOptions> {
         authorName,
         authorEmail,
         date: new Date(parseInt(timestamp, 10) * 1000).toISOString(),
-        subject: subjectParts.join('|'),
+        message,
       });
     }
 
