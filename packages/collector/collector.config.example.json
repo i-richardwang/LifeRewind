@@ -1,0 +1,50 @@
+{
+  "api": {
+    "baseUrl": "http://localhost:3000",
+    "apiKey": "your-api-key-here",
+    "timeout": 30000,
+    "retryAttempts": 3
+  },
+  "sources": {
+    "git": {
+      "enabled": true,
+      "schedule": "daily",
+      "options": {
+        "repositories": [
+          "~/Projects/my-project"
+        ],
+        "authors": [],
+        "sinceDays": 30
+      }
+    },
+    "browser": {
+      "enabled": false,
+      "schedule": "daily",
+      "options": {
+        "browsers": ["chrome"],
+        "excludeDomains": ["localhost", "127.0.0.1"],
+        "sinceDays": 7
+      }
+    },
+    "filesystem": {
+      "enabled": false,
+      "schedule": "daily",
+      "options": {
+        "watchPaths": [],
+        "excludePatterns": ["**/node_modules/**", "**/.git/**"],
+        "fileTypes": [".md", ".txt"]
+      }
+    },
+    "ai-chat": {
+      "enabled": false,
+      "schedule": "weekly",
+      "options": {
+        "providers": [],
+        "exportPaths": {}
+      }
+    }
+  },
+  "logging": {
+    "level": "info"
+  }
+}

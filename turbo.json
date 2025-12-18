@@ -1,6 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "LIFEREWIND_API_URL",
+    "LIFEREWIND_API_KEY",
+    "COLLECTOR_CONFIG_PATH",
+    "COLLECTOR_RUN_ON_START"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
