@@ -11,9 +11,12 @@ export interface ApiClientConfig {
 }
 
 const pushResponseSchema = z.object({
-  success: z.boolean(),
-  itemsReceived: z.number(),
-  message: z.string().optional(),
+  success: z.literal(true),
+  data: z.object({
+    itemsReceived: z.number(),
+    itemsInserted: z.number(),
+    requestId: z.string(),
+  }),
 });
 
 export type PushResponse = z.infer<typeof pushResponseSchema>;

@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import {
-  collectedItems,
-  collectionLogs,
-  type NewCollectedItem,
-  type CollectedItemData,
-} from '@/db/schema';
+import { collectedItems, collectionLogs, type NewCollectedItem } from '@/db/schema';
 import { validateApiKey } from '@/lib/auth';
 
 const MAX_ITEMS_PER_REQUEST = 1000;
 const BATCH_SIZE = 50;
+
+function sha256(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
+}
 
 interface ApiSuccessResponse<T = null> {
   success: true;
@@ -146,6 +146,7 @@ function transformGitItem(item: CollectedItemPayload, collectedAt: Date): NewCol
 
   return {
     sourceType: 'git',
+    sourceKey: data.hash,
     timestamp: new Date(data.date),
     title,
     url: null,
@@ -157,7 +158,6 @@ function transformGitItem(item: CollectedItemPayload, collectedAt: Date): NewCol
       messageBody,
       stats: data.stats,
     },
-    uniqueKey: `git:${data.hash}`,
     collectedAt,
   };
 }
@@ -167,6 +167,7 @@ function transformBrowserItem(item: CollectedItemPayload, collectedAt: Date): Ne
 
   return {
     sourceType: 'browser',
+    sourceKey: sha256(`${data.url}|${data.browser}|${data.date}`),
     timestamp: new Date(data.lastVisitTime),
     title: data.title,
     url: data.url,
@@ -179,7 +180,6 @@ function transformBrowserItem(item: CollectedItemPayload, collectedAt: Date): Ne
       firstVisitTime: data.firstVisitTime,
       lastVisitTime: data.lastVisitTime,
     },
-    uniqueKey: `browser:${data.url}:${data.browser}:${data.date}`,
     collectedAt,
   };
 }
@@ -190,6 +190,7 @@ function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date):
 
   return {
     sourceType: 'filesystem',
+    sourceKey: sha256(`${data.filePath}|${modifiedTimestamp.toISOString()}`),
     timestamp: modifiedTimestamp,
     title: data.fileName,
     url: `file://${data.filePath}`,
@@ -202,7 +203,6 @@ function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date):
       contentPreview: data.contentPreview,
       parentDirectory: data.parentDirectory,
     },
-    uniqueKey: `filesystem:${data.filePath}:${modifiedTimestamp.toISOString()}`,
     collectedAt,
   };
 }
@@ -212,6 +212,7 @@ function transformChatbotItem(item: CollectedItemPayload, collectedAt: Date): Ne
 
   return {
     sourceType: 'chatbot',
+    sourceKey: `${data.client}:${data.session.id}`,
     timestamp: new Date(data.session.lastReplyAt),
     title: data.session.title,
     url: null,
@@ -231,7 +232,6 @@ function transformChatbotItem(item: CollectedItemPayload, collectedAt: Date): Ne
         reasoningContent: msg.reasoningContent,
       })),
     },
-    uniqueKey: `chatbot:${data.client}:${data.session.id}`,
     collectedAt,
   };
 }
@@ -246,24 +246,10 @@ function transformItem(item: CollectedItemPayload, collectedAt: Date): NewCollec
       return transformFilesystemItem(item, collectedAt);
     case 'chatbot':
       return transformChatbotItem(item, collectedAt);
-    default: {
-      // Fallback for future data sources
-      const itemTimestamp = new Date(item.timestamp);
-      return {
-        sourceType: item.sourceType,
-        timestamp: itemTimestamp,
-        title: null,
-        url: null,
-        data: item.data as CollectedItemData,
-        uniqueKey: `${item.sourceType}:${itemTimestamp.toISOString()}:${JSON.stringify(item.data)}`,
-        collectedAt,
-      };
-    }
   }
 }
 
-/** UPSERT browser items: merge profiles and accumulate dailyVisitCount on conflict */
-async function upsertBrowserItems(items: NewCollectedItem[]): Promise<number> {
+async function upsertItems(items: NewCollectedItem[]): Promise<number> {
   if (items.length === 0) return 0;
 
   let totalCount = 0;
@@ -271,44 +257,17 @@ async function upsertBrowserItems(items: NewCollectedItem[]): Promise<number> {
   for (let offset = 0; offset < items.length; offset += BATCH_SIZE) {
     const batch = items.slice(offset, offset + BATCH_SIZE);
 
-    // Use Promise.allSettled to handle partial failures gracefully
     const results = await Promise.allSettled(
       batch.map((item) =>
         db
           .insert(collectedItems)
           .values(item)
           .onConflictDoUpdate({
-            target: collectedItems.uniqueKey,
+            target: [collectedItems.sourceType, collectedItems.sourceKey],
             set: {
               title: sql`EXCLUDED.title`,
-              timestamp: sql`GREATEST(${collectedItems.timestamp}, EXCLUDED.timestamp)`,
-              data: sql`
-                jsonb_build_object(
-                  'browser', EXCLUDED.data->>'browser',
-                  'profiles', (
-                    SELECT COALESCE(jsonb_agg(DISTINCT value), '[]'::jsonb)
-                    FROM jsonb_array_elements_text(
-                      COALESCE(${collectedItems.data}->'profiles', '[]'::jsonb) ||
-                      COALESCE(EXCLUDED.data->'profiles', '[]'::jsonb)
-                    )
-                  ),
-                  'date', EXCLUDED.data->>'date',
-                  'timezone', EXCLUDED.data->>'timezone',
-                  'dailyVisitCount',
-                    COALESCE((${collectedItems.data}->>'dailyVisitCount')::int, 0) +
-                    COALESCE((EXCLUDED.data->>'dailyVisitCount')::int, 0),
-                  'firstVisitTime',
-                    LEAST(
-                      COALESCE(${collectedItems.data}->>'firstVisitTime', EXCLUDED.data->>'firstVisitTime'),
-                      COALESCE(EXCLUDED.data->>'firstVisitTime', ${collectedItems.data}->>'firstVisitTime')
-                    ),
-                  'lastVisitTime',
-                    GREATEST(
-                      COALESCE(${collectedItems.data}->>'lastVisitTime', EXCLUDED.data->>'lastVisitTime'),
-                      COALESCE(EXCLUDED.data->>'lastVisitTime', ${collectedItems.data}->>'lastVisitTime')
-                    )
-                )
-              `,
+              timestamp: sql`EXCLUDED.timestamp`,
+              data: sql`EXCLUDED.data`,
               collectedAt: sql`EXCLUDED.collected_at`,
             },
           })
@@ -320,7 +279,7 @@ async function upsertBrowserItems(items: NewCollectedItem[]): Promise<number> {
       if (result.status === 'fulfilled') {
         totalCount += result.value.length;
       } else {
-        console.error('Browser item upsert failed:', result.reason);
+        console.error('Upsert failed:', result.reason);
       }
     }
   }
@@ -350,18 +309,21 @@ export async function POST(request: NextRequest) {
 
     let itemsInserted = 0;
     if (transformedItems.length > 0) {
-      if (sourceType === 'browser') {
-        // Use UPSERT for browser items to merge daily visits
-        itemsInserted = await upsertBrowserItems(transformedItems);
-      } else {
-        // Use INSERT ON CONFLICT DO NOTHING for other types
-        const result = await db
-          .insert(collectedItems)
-          .values(transformedItems)
-          .onConflictDoNothing()
-          .returning({ id: collectedItems.id });
-
-        itemsInserted = result.length;
+      switch (sourceType) {
+        case 'browser':
+        case 'chatbot':
+          itemsInserted = await upsertItems(transformedItems);
+          break;
+        default: {
+          const result = await db
+            .insert(collectedItems)
+            .values(transformedItems)
+            .onConflictDoNothing({
+              target: [collectedItems.sourceType, collectedItems.sourceKey],
+            })
+            .returning({ id: collectedItems.id });
+          itemsInserted = result.length;
+        }
       }
     }
 

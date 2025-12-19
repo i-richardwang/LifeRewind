@@ -98,7 +98,7 @@ export class Collector {
       this.logger.info(`Collected ${result.itemsCollected} items from ${sourceType}`);
 
       const response = await this.apiClient.pushData(result);
-      this.logger.info(`Pushed to API: ${response.itemsReceived} items received`);
+      this.logger.info(`Pushed to API: ${response.data.itemsReceived} received, ${response.data.itemsInserted} inserted`);
     } catch (error) {
       this.logger.error(`Error in collect/push cycle for ${sourceType}`, error);
     }
