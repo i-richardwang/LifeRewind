@@ -12,23 +12,28 @@ export interface GitData {
     filesChanged: number;
     insertions: number;
     deletions: number;
+    files: string[];
   };
 }
 
 export interface BrowserData {
   browser: 'chrome' | 'safari' | 'arc' | 'dia' | 'comet';
-  profile?: string;
-  visitCount: number;
+  profiles: string[]; // All profiles that visited this URL on this date
+  date: string; // ISO date "YYYY-MM-DD"
+  timezone: string; // e.g. "Asia/Shanghai"
+  dailyVisitCount: number; // Number of visits on this date
+  firstVisitTime: string; // ISO timestamp of first visit
+  lastVisitTime: string; // ISO timestamp of last visit
 }
 
 export interface FilesystemData {
   filePath: string;
   eventType: 'create' | 'modify' | 'delete';
-  fileSize?: number;
-  extension?: string;
+  fileSize: number;
+  extension: string;
   mimeType?: string;
   contentPreview?: string;
-  parentDirectory?: string;
+  parentDirectory: string;
 }
 
 export interface ChatbotMessage {

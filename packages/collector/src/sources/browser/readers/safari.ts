@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { BrowserReader, type ReaderContext } from './base.js';
+import { BrowserReader } from './base.js';
 import type { BrowserType } from '../types.js';
 
 // Safari timestamp: seconds since 2001-01-01 (Apple Cocoa epoch)

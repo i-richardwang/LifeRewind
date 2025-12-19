@@ -1,16 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   collectedItems,
   collectionLogs,
-  type SourceType,
   type NewCollectedItem,
   type CollectedItemData,
 } from '@/db/schema';
 import { validateApiKey } from '@/lib/auth';
 
-// Zod schemas for request validation
+const MAX_ITEMS_PER_REQUEST = 1000;
+const BATCH_SIZE = 50;
+
+interface ApiSuccessResponse<T = null> {
+  success: true;
+  data: T;
+}
+
+interface ApiErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: string[];
+    requestId?: string;
+  };
+}
+
+function createErrorResponse(
+  code: string,
+  message: string,
+  status: number,
+  details?: string[],
+  requestId?: string
+): NextResponse<ApiErrorResponse> {
+  return NextResponse.json(
+    {
+      success: false as const,
+      error: { code, message, details, requestId },
+    },
+    { status }
+  );
+}
+
+function createSuccessResponse<T>(data: T): NextResponse<ApiSuccessResponse<T>> {
+  return NextResponse.json({
+    success: true as const,
+    data,
+  });
+}
+
+function generateRequestId(): string {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 const gitCommitSchema = z.object({
   hash: z.string(),
   repository: z.string(),
@@ -22,16 +66,20 @@ const gitCommitSchema = z.object({
     filesChanged: z.number(),
     insertions: z.number(),
     deletions: z.number(),
+    files: z.array(z.string()),
   }),
 });
 
 const browserHistorySchema = z.object({
   url: z.string(),
   title: z.string(),
-  visitTime: z.string(),
-  visitCount: z.number(),
   browser: z.enum(['chrome', 'safari', 'arc', 'dia', 'comet']),
-  profile: z.string().optional(),
+  profiles: z.array(z.string()).max(100),
+  date: z.string(),
+  timezone: z.string(),
+  dailyVisitCount: z.number(),
+  firstVisitTime: z.string(),
+  lastVisitTime: z.string(),
 });
 
 const filesystemSchema = z.object({
@@ -81,20 +129,19 @@ const collectedItemSchema = z.object({
 const ingestRequestSchema = z.object({
   sourceType: sourceTypeSchema,
   collectedAt: z.string(),
-  items: z.array(collectedItemSchema),
+  items: z.array(collectedItemSchema).max(MAX_ITEMS_PER_REQUEST),
 });
 
 type GitCommitPayload = z.infer<typeof gitCommitSchema>;
 type BrowserHistoryPayload = z.infer<typeof browserHistorySchema>;
 type FilesystemPayload = z.infer<typeof filesystemSchema>;
-type ChatbotMessagePayload = z.infer<typeof chatbotMessageSchema>;
 type ChatbotPayload = z.infer<typeof chatbotSchema>;
 type CollectedItemPayload = z.infer<typeof collectedItemSchema>;
 
 function transformGitItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
   const data = item.data as GitCommitPayload;
   const lines = data.message.split('\n');
-  const title = lines[0];
+  const title = lines[0] ?? '';
   const messageBody = lines.slice(1).join('\n').trim() || undefined;
 
   return {
@@ -117,19 +164,22 @@ function transformGitItem(item: CollectedItemPayload, collectedAt: Date): NewCol
 
 function transformBrowserItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
   const data = item.data as BrowserHistoryPayload;
-  const visitTimestamp = new Date(data.visitTime);
 
   return {
     sourceType: 'browser',
-    timestamp: visitTimestamp,
+    timestamp: new Date(data.lastVisitTime),
     title: data.title,
     url: data.url,
     data: {
       browser: data.browser,
-      profile: data.profile,
-      visitCount: data.visitCount,
+      profiles: data.profiles,
+      date: data.date,
+      timezone: data.timezone,
+      dailyVisitCount: data.dailyVisitCount,
+      firstVisitTime: data.firstVisitTime,
+      lastVisitTime: data.lastVisitTime,
     },
-    uniqueKey: `browser:${data.url}:${data.browser}:${visitTimestamp.toISOString()}`,
+    uniqueKey: `browser:${data.url}:${data.browser}:${data.date}`,
     collectedAt,
   };
 }
@@ -212,10 +262,77 @@ function transformItem(item: CollectedItemPayload, collectedAt: Date): NewCollec
   }
 }
 
+/** UPSERT browser items: merge profiles and accumulate dailyVisitCount on conflict */
+async function upsertBrowserItems(items: NewCollectedItem[]): Promise<number> {
+  if (items.length === 0) return 0;
+
+  let totalCount = 0;
+
+  for (let offset = 0; offset < items.length; offset += BATCH_SIZE) {
+    const batch = items.slice(offset, offset + BATCH_SIZE);
+
+    // Use Promise.allSettled to handle partial failures gracefully
+    const results = await Promise.allSettled(
+      batch.map((item) =>
+        db
+          .insert(collectedItems)
+          .values(item)
+          .onConflictDoUpdate({
+            target: collectedItems.uniqueKey,
+            set: {
+              title: sql`EXCLUDED.title`,
+              timestamp: sql`GREATEST(${collectedItems.timestamp}, EXCLUDED.timestamp)`,
+              data: sql`
+                jsonb_build_object(
+                  'browser', EXCLUDED.data->>'browser',
+                  'profiles', (
+                    SELECT COALESCE(jsonb_agg(DISTINCT value), '[]'::jsonb)
+                    FROM jsonb_array_elements_text(
+                      COALESCE(${collectedItems.data}->'profiles', '[]'::jsonb) ||
+                      COALESCE(EXCLUDED.data->'profiles', '[]'::jsonb)
+                    )
+                  ),
+                  'date', EXCLUDED.data->>'date',
+                  'timezone', EXCLUDED.data->>'timezone',
+                  'dailyVisitCount',
+                    COALESCE((${collectedItems.data}->>'dailyVisitCount')::int, 0) +
+                    COALESCE((EXCLUDED.data->>'dailyVisitCount')::int, 0),
+                  'firstVisitTime',
+                    LEAST(
+                      COALESCE(${collectedItems.data}->>'firstVisitTime', EXCLUDED.data->>'firstVisitTime'),
+                      COALESCE(EXCLUDED.data->>'firstVisitTime', ${collectedItems.data}->>'firstVisitTime')
+                    ),
+                  'lastVisitTime',
+                    GREATEST(
+                      COALESCE(${collectedItems.data}->>'lastVisitTime', EXCLUDED.data->>'lastVisitTime'),
+                      COALESCE(EXCLUDED.data->>'lastVisitTime', ${collectedItems.data}->>'lastVisitTime')
+                    )
+                )
+              `,
+              collectedAt: sql`EXCLUDED.collected_at`,
+            },
+          })
+          .returning({ id: collectedItems.id })
+      )
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        totalCount += result.value.length;
+      } else {
+        console.error('Browser item upsert failed:', result.reason);
+      }
+    }
+  }
+
+  return totalCount;
+}
+
 export async function POST(request: NextRequest) {
-  // Validate API Key
+  const requestId = generateRequestId();
+
   if (!validateApiKey(request)) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    return createErrorResponse('UNAUTHORIZED', 'Invalid or missing API key', 401, undefined, requestId);
   }
 
   try {
@@ -223,47 +340,53 @@ export async function POST(request: NextRequest) {
     const parseResult = ingestRequestSchema.safeParse(rawBody);
 
     if (!parseResult.success) {
-      const errors = parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
-      return NextResponse.json(
-        { success: false, error: 'Validation failed', details: errors },
-        { status: 400 }
-      );
+      const details = parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
+      return createErrorResponse('VALIDATION_ERROR', 'Request validation failed', 400, details, requestId);
     }
 
     const { sourceType, collectedAt, items } = parseResult.data;
     const collectedAtDate = new Date(collectedAt);
     const transformedItems = items.map((item) => transformItem(item, collectedAtDate));
 
-    // Batch insert with conflict handling
     let itemsInserted = 0;
     if (transformedItems.length > 0) {
-      const result = await db
-        .insert(collectedItems)
-        .values(transformedItems)
-        .onConflictDoNothing()
-        .returning({ id: collectedItems.id });
+      if (sourceType === 'browser') {
+        // Use UPSERT for browser items to merge daily visits
+        itemsInserted = await upsertBrowserItems(transformedItems);
+      } else {
+        // Use INSERT ON CONFLICT DO NOTHING for other types
+        const result = await db
+          .insert(collectedItems)
+          .values(transformedItems)
+          .onConflictDoNothing()
+          .returning({ id: collectedItems.id });
 
-      itemsInserted = result.length;
+        itemsInserted = result.length;
+      }
     }
 
-    // Log the collection
     await db.insert(collectionLogs).values({
       sourceType,
       itemsCount: items.length,
       collectedAt: collectedAtDate,
     });
 
-    return NextResponse.json({
-      success: true,
+    return createSuccessResponse({
       itemsReceived: items.length,
       itemsInserted,
-      message: 'Data ingested successfully',
+      requestId,
     });
   } catch (error) {
-    console.error('Ingest error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error(`[${requestId}] Ingest error:`, error);
+
+    if (error instanceof SyntaxError) {
+      return createErrorResponse('INVALID_JSON', 'Request body is not valid JSON', 400, undefined, requestId);
+    }
+
+    if (error instanceof Error && error.message.includes('connect')) {
+      return createErrorResponse('DATABASE_ERROR', 'Database connection failed', 503, undefined, requestId);
+    }
+
+    return createErrorResponse('INTERNAL_ERROR', 'An unexpected error occurred', 500, undefined, requestId);
   }
 }

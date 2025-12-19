@@ -15,8 +15,12 @@ const TEXT_EXTENSIONS = new Set([
   '.yml',
   '.xml',
   '.csv',
+  '.tsv',
   '.log',
   '.rtf',
+  '.sql',
+  '.rmd',
+  '.qmd',
 ]);
 
 /** Maximum characters to include in content preview */
@@ -24,15 +28,22 @@ const CONTENT_PREVIEW_LENGTH = 500;
 
 /** MIME type mapping for common document formats */
 const MIME_MAP: Record<string, string> = {
+  // Text & Markdown
   '.md': 'text/markdown',
   '.markdown': 'text/markdown',
   '.txt': 'text/plain',
   '.rtf': 'text/rtf',
+  '.log': 'text/plain',
+
+  // Data formats
   '.json': 'application/json',
   '.yaml': 'application/x-yaml',
   '.yml': 'application/x-yaml',
   '.xml': 'application/xml',
   '.csv': 'text/csv',
+  '.tsv': 'text/tab-separated-values',
+
+  // Documents
   '.pdf': 'application/pdf',
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -43,6 +54,94 @@ const MIME_MAP: Record<string, string> = {
   '.pages': 'application/vnd.apple.pages',
   '.numbers': 'application/vnd.apple.numbers',
   '.key': 'application/vnd.apple.keynote',
+
+  // Images
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.bmp': 'image/bmp',
+  '.tiff': 'image/tiff',
+  '.tif': 'image/tiff',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.avif': 'image/avif',
+  '.psd': 'image/vnd.adobe.photoshop',
+  '.ai': 'application/postscript',
+  '.eps': 'application/postscript',
+  '.sketch': 'application/x-sketch',
+  '.fig': 'application/x-figma',
+
+  // Archives
+  '.zip': 'application/zip',
+  '.rar': 'application/vnd.rar',
+  '.7z': 'application/x-7z-compressed',
+  '.tar': 'application/x-tar',
+  '.gz': 'application/gzip',
+  '.bz2': 'application/x-bzip2',
+  '.xz': 'application/x-xz',
+  '.dmg': 'application/x-apple-diskimage',
+
+  // Applications & Installers
+  '.exe': 'application/x-msdownload',
+  '.msi': 'application/x-msi',
+  '.app': 'application/x-apple-application',
+  '.pkg': 'application/x-newton-compatible-pkg',
+  '.deb': 'application/x-deb',
+  '.rpm': 'application/x-rpm',
+  '.apk': 'application/vnd.android.package-archive',
+  '.ipa': 'application/x-ios-app',
+
+  // Data Science & Analytics
+  '.parquet': 'application/x-parquet',
+  '.feather': 'application/x-feather',
+  '.arrow': 'application/x-arrow',
+  '.pickle': 'application/x-pickle',
+  '.pkl': 'application/x-pickle',
+  '.h5': 'application/x-hdf5',
+  '.hdf5': 'application/x-hdf5',
+  '.npy': 'application/x-numpy',
+  '.npz': 'application/x-numpy',
+  '.sav': 'application/x-spss-sav',
+  '.dta': 'application/x-stata-dta',
+  '.rds': 'application/x-r-data',
+  '.rdata': 'application/x-r-data',
+
+  // Tableau
+  '.twb': 'application/x-tableau-workbook',
+  '.twbx': 'application/x-tableau-packaged-workbook',
+  '.tds': 'application/x-tableau-datasource',
+  '.tdsx': 'application/x-tableau-packaged-datasource',
+  '.hyper': 'application/x-tableau-hyper',
+  '.tde': 'application/x-tableau-extract',
+
+  // Database
+  '.sql': 'application/sql',
+  '.db': 'application/x-sqlite3',
+  '.sqlite': 'application/x-sqlite3',
+  '.sqlite3': 'application/x-sqlite3',
+
+  // Notebooks & Scripts
+  '.ipynb': 'application/x-ipynb+json',
+  '.rmd': 'text/x-r-markdown',
+  '.qmd': 'text/x-quarto-markdown',
+
+  // E-books
+  '.epub': 'application/epub+zip',
+  '.mobi': 'application/x-mobipocket-ebook',
+  '.azw3': 'application/vnd.amazon.ebook',
+  '.djvu': 'image/vnd.djvu',
+  '.cbz': 'application/vnd.comicbook+zip',
+  '.cbr': 'application/vnd.comicbook-rar',
+
+  // Fonts
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
 };
 
 export interface ScannerContext {

@@ -9,10 +9,10 @@ export function validateApiKey(request: NextRequest): boolean {
   }
 
   const token = authHeader.slice(7);
-  const apiKey = process.env.COLLECTOR_API_KEY;
+  const apiKey = process.env.LIFEREWIND_API_KEY;
 
   if (!apiKey) {
-    console.error('COLLECTOR_API_KEY is not configured');
+    console.error('LIFEREWIND_API_KEY is not configured');
     return false;
   }
 

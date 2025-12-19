@@ -4,11 +4,12 @@ export interface GitCommit {
   authorName: string;
   authorEmail: string;
   date: string;
-  message: string; // Full commit message (subject + body)
+  message: string;
   stats: {
     filesChanged: number;
     insertions: number;
     deletions: number;
+    files: string[];
   };
 }
 

@@ -1,6 +1,11 @@
 import { DataSource } from '../base.js';
 import type { CollectionResult } from '../../core/types.js';
-import type { BrowserHistoryItem, BrowserSourceOptions, BrowserType } from './types.js';
+import type {
+  BrowserHistoryItem,
+  BrowserSourceOptions,
+  BrowserType,
+  AggregatedBrowserHistoryItem,
+} from './types.js';
 import type { BrowserReader, ReaderContext } from './readers/base.js';
 import { ChromiumReader } from './readers/chromium.js';
 import { SafariReader } from './readers/safari.js';
@@ -50,20 +55,80 @@ export class BrowserSource extends DataSource<BrowserSourceOptions> {
       }
     }
 
-    // Sort by visit time descending
-    allItems.sort((a, b) => new Date(b.visitTime).getTime() - new Date(a.visitTime).getTime());
+    // Aggregate by URL + browser + date
+    const aggregated = this.aggregateByDay(allItems);
+    this.context.logger.info(
+      `Aggregated ${allItems.length} raw visits into ${aggregated.length} daily records`
+    );
+
+    // Sort by last visit time descending
+    aggregated.sort(
+      (a, b) => new Date(b.lastVisitTime).getTime() - new Date(a.lastVisitTime).getTime()
+    );
 
     return {
       sourceType: this.type,
       success: true,
-      itemsCollected: allItems.length,
-      items: allItems.map((item) => ({
+      itemsCollected: aggregated.length,
+      items: aggregated.map((item) => ({
         sourceType: this.type,
-        timestamp: new Date(item.visitTime),
+        timestamp: new Date(item.lastVisitTime),
         data: item,
       })),
       collectedAt: new Date(),
     };
+  }
+
+  /** Aggregate raw browser history items by URL + browser + date */
+  private aggregateByDay(items: BrowserHistoryItem[]): AggregatedBrowserHistoryItem[] {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const grouped = new Map<string, BrowserHistoryItem[]>();
+
+    for (const item of items) {
+      // Get local date string in YYYY-MM-DD format
+      const date = new Date(item.visitTime).toLocaleDateString('en-CA', { timeZone: timezone });
+      const key = `${item.url}|${item.browser}|${date}`;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)!.push(item);
+    }
+
+    return Array.from(grouped.entries()).map(([key, visits]) => {
+      const parts = key.split('|');
+      // Key format is guaranteed: `${url}|${browser}|${date}`
+      if (parts.length < 3) {
+        throw new Error(`Invalid aggregation key format: ${key}`);
+      }
+      const url = parts[0] as string;
+      const browser = parts[1] as BrowserType;
+      const date = parts[2] as string;
+
+      // Sort visits by time ascending to get first and last
+      const sorted = visits.sort(
+        (a, b) => new Date(a.visitTime).getTime() - new Date(b.visitTime).getTime()
+      );
+
+      // Collect unique profiles
+      const profiles = [...new Set(visits.map((v) => v.profile).filter((p): p is string => !!p))];
+
+      // sorted is guaranteed non-empty since visits came from grouping
+      const firstVisit = sorted[0] as BrowserHistoryItem;
+      const lastVisit = sorted[sorted.length - 1] as BrowserHistoryItem;
+
+      return {
+        url,
+        title: lastVisit.title, // Use title from last visit
+        browser,
+        profiles,
+        date,
+        timezone,
+        dailyVisitCount: visits.length,
+        firstVisitTime: firstVisit.visitTime,
+        lastVisitTime: lastVisit.visitTime,
+      };
+    });
   }
 
   private createReader(browser: BrowserType, context: ReaderContext): BrowserReader | null {

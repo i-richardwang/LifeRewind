@@ -1,6 +1,7 @@
 import { copyFileSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type { BrowserHistoryItem, BrowserType, RawHistoryRow } from '../types.js';
 import type { Logger } from '../../../utils/logger.js';
@@ -60,7 +61,7 @@ export abstract class BrowserReader {
   }
 
   private readFromDb(dbPath: string): BrowserHistoryItem[] {
-    const tempPath = join(tmpdir(), `browser-history-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
+    const tempPath = join(tmpdir(), `browser-history-${randomUUID()}.db`);
     let db: InstanceType<typeof Database> | null = null;
 
     try {

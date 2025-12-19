@@ -25,7 +25,6 @@ export class GitSource extends DataSource<GitSourceOptions> {
       return false;
     }
 
-    // Discover all git repositories in scan paths
     const excludeSet = new Set(
       (this.options.excludeRepositories ?? []).map((p) => expandPath(p))
     );
@@ -50,33 +49,29 @@ export class GitSource extends DataSource<GitSourceOptions> {
     return true;
   }
 
-  /** Recursively discover git repositories in a directory */
   private discoverRepositories(dirPath: string, excludeSet: Set<string>): string[] {
     const repos: string[] = [];
 
-    // Check if this directory itself is a git repo
     if (isGitRepository(dirPath)) {
       if (excludeSet.has(dirPath)) {
         this.context.logger.debug(`Excluding repository: ${dirPath}`);
       } else {
         repos.push(dirPath);
       }
-      // Don't recurse into git repos (nested repos are rare)
+      // Don't recurse into nested git repos
       return repos;
     }
 
-    // Scan subdirectories
     try {
       const entries = readdirSync(dirPath, { withFileTypes: true });
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
-        // Skip hidden directories and common non-repo directories
         if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
 
         const subPath = resolve(dirPath, entry.name);
         repos.push(...this.discoverRepositories(subPath, excludeSet));
       }
-    } catch (error) {
+    } catch {
       this.context.logger.debug(`Cannot read directory: ${dirPath}`);
     }
 
@@ -111,7 +106,6 @@ export class GitSource extends DataSource<GitSourceOptions> {
     };
   }
 
-  /** Execute git command safely using execFileSync */
   private execGit(repoPath: string, args: string[]): string {
     return execFileSync('git', ['-C', repoPath, ...args], {
       encoding: 'utf-8',
@@ -120,9 +114,10 @@ export class GitSource extends DataSource<GitSourceOptions> {
   }
 
   private getCommitsFromRepo(repoPath: string, since: Date): GitCommit[] {
-    const sinceStr = since.toISOString().split('T')[0]!;
-    // Use NULL (%x00) as field separator and record separator for safe parsing
-    // %B = full commit message (subject + body)
+    const isoString = since.toISOString();
+    const sinceStr = isoString.split('T')[0] ?? isoString.slice(0, 10);
+
+    // Use NULL as separator for safe parsing of multi-line commit messages
     const fieldSep = '%x00';
     const recordSep = '%x00%x00';
     const format = `%H${fieldSep}%an${fieldSep}%ae${fieldSep}%at${fieldSep}%B${recordSep}`;
@@ -150,20 +145,16 @@ export class GitSource extends DataSource<GitSourceOptions> {
 
   private parseGitLog(output: string, repoPath: string): Omit<GitCommit, 'stats'>[] {
     const commits: Omit<GitCommit, 'stats'>[] = [];
-    // Split by double NULL (record separator)
     const records = output.split('\0\0').filter(Boolean);
 
     for (const record of records) {
-      // Split by single NULL (field separator)
       const parts = record.split('\0');
       if (parts.length < 5) continue;
 
       const [rawHash, authorName, authorEmail, timestamp, ...messageParts] = parts;
-      // Trim hash to remove any leading/trailing whitespace (including newlines from %B)
       const hash = rawHash?.trim();
       if (!hash || !authorName || !authorEmail || !timestamp) continue;
 
-      // Join message parts and trim whitespace
       const message = messageParts.join('\0').trim();
 
       commits.push({
@@ -182,24 +173,28 @@ export class GitSource extends DataSource<GitSourceOptions> {
   private getCommitStats(
     repoPath: string,
     hash: string
-  ): { filesChanged: number; insertions: number; deletions: number } {
+  ): { filesChanged: number; insertions: number; deletions: number; files: string[] } {
     try {
-      const output = this.execGit(repoPath, ['show', '--stat', '--format=', hash]);
-      const lines = output.trim().split('\n');
+      const statsOutput = this.execGit(repoPath, ['show', '--stat', '--format=', hash]);
+      const lines = statsOutput.trim().split('\n');
       const summaryLine = lines[lines.length - 1] ?? '';
 
       const filesMatch = summaryLine.match(/(\d+) files? changed/);
       const insertMatch = summaryLine.match(/(\d+) insertions?\(\+\)/);
       const deleteMatch = summaryLine.match(/(\d+) deletions?\(-\)/);
 
+      const filesOutput = this.execGit(repoPath, ['diff-tree', '--no-commit-id', '--name-only', '-r', hash]);
+      const files = filesOutput.trim().split('\n').filter(Boolean);
+
       return {
         filesChanged: filesMatch?.[1] ? parseInt(filesMatch[1], 10) : 0,
         insertions: insertMatch?.[1] ? parseInt(insertMatch[1], 10) : 0,
         deletions: deleteMatch?.[1] ? parseInt(deleteMatch[1], 10) : 0,
+        files,
       };
     } catch (error) {
       this.context.logger.warn(`Failed to get commit stats for ${hash}`, error);
-      return { filesChanged: 0, insertions: 0, deletions: 0 };
+      return { filesChanged: 0, insertions: 0, deletions: 0, files: [] };
     }
   }
 }
