@@ -1,13 +1,17 @@
 import { Command } from 'commander';
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { input, confirm, select, checkbox } from '@inquirer/prompts';
+import { confirm, select, checkbox } from '@inquirer/prompts';
 import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients } from '../detect/index.js';
 import { writeConfig } from '../../config/writer.js';
 import { getUserConfigPath } from '../../config/paths.js';
 import { printBanner, printSection, printSuccess, printInfo, printDim, printWarning } from '../utils/output.js';
-import { parsePaths } from '../utils/path.js';
-import { warnMissingPaths, showMaskedKey, SCHEDULE_CHOICES_WITH_HINT } from '../utils/prompts.js';
+import {
+  SCHEDULE_CHOICES_WITH_HINT,
+  GIT_PATH_PRESETS,
+  FILESYSTEM_PATH_PRESETS,
+  selectPaths,
+} from '../utils/prompts.js';
+import { inputApiUrl, inputApiKey } from '../utils/api.js';
 import type { CollectorConfig } from '../../config/schema.js';
 
 export const initCommand = new Command('init')
@@ -17,7 +21,6 @@ export const initCommand = new Command('init')
     const globalOpts = cmd.optsWithGlobals();
     const configPath = globalOpts.config || getUserConfigPath();
 
-    // Check if config already exists
     if (existsSync(configPath) && !options.force) {
       printInfo(`Configuration already exists at ${configPath}`);
       const overwrite = await confirm({
@@ -54,25 +57,8 @@ export const initCommand = new Command('init')
 
     // Step 1: API Configuration
     printSection('Step 1/5: API Configuration');
-
-    config.api.baseUrl = await input({
-      message: 'API Base URL:',
-      default: 'http://localhost:3000',
-      validate: (value) => {
-        try {
-          new URL(value);
-          return true;
-        } catch {
-          return 'Please enter a valid URL';
-        }
-      },
-    });
-
-    config.api.apiKey = await input({
-      message: 'API Key:',
-      validate: (value) => (value.length > 0 ? true : 'API Key is required'),
-    });
-    showMaskedKey(config.api.apiKey);
+    config.api.baseUrl = await inputApiUrl();
+    config.api.apiKey = await inputApiKey();
 
     // Step 2: Browser History
     printSection('Step 2/5: Browser History');
@@ -91,6 +77,7 @@ export const initCommand = new Command('init')
     if (enableBrowser) {
       const selectedBrowsers = await checkbox({
         message: 'Select browsers to collect:',
+        loop: false,
         choices: [
           { name: 'Chrome', value: 'chrome' as const, checked: detectedBrowsers.includes('chrome') },
           { name: 'Safari', value: 'safari' as const, checked: detectedBrowsers.includes('safari') },
@@ -100,13 +87,13 @@ export const initCommand = new Command('init')
         ],
       });
 
-      // If no browsers selected, disable the source
       if (selectedBrowsers.length === 0) {
         printWarning('No browsers selected, browser collection will be disabled.');
       } else {
         const browserSchedule = await select({
           message: 'Collection schedule:',
           choices: SCHEDULE_CHOICES_WITH_HINT,
+          loop: false,
           default: 'daily',
         });
 
@@ -133,22 +120,15 @@ export const initCommand = new Command('init')
     });
 
     if (enableGit) {
-      const defaultPaths = [`${homedir()}/Projects`, `${homedir()}/Documents`].filter(existsSync);
-      const scanPathsInput = await input({
-        message: 'Paths to scan for git repositories (comma-separated):',
-        default: defaultPaths.join(',') || `${homedir()}/Projects`,
-      });
-
-      const scanPaths = parsePaths(scanPathsInput);
+      const scanPaths = await selectPaths('Select paths to scan for git repositories:', GIT_PATH_PRESETS);
 
       if (scanPaths.length === 0) {
-        printWarning('No paths specified, git collection will be disabled.');
+        printWarning('No paths selected, git collection will be disabled.');
       } else {
-        warnMissingPaths(scanPaths);
-
         const gitSchedule = await select({
           message: 'Collection schedule:',
           choices: SCHEDULE_CHOICES_WITH_HINT,
+          loop: false,
           default: 'daily',
         });
 
@@ -163,7 +143,7 @@ export const initCommand = new Command('init')
       }
     }
 
-    // Step 4: Filesystem (Optional)
+    // Step 4: Filesystem
     printSection('Step 4/5: Filesystem Changes');
     const enableFilesystem = await confirm({
       message: 'Enable filesystem monitoring?',
@@ -171,21 +151,21 @@ export const initCommand = new Command('init')
     });
 
     if (enableFilesystem) {
-      const watchPathsInput = await input({
-        message: 'Paths to monitor (comma-separated):',
-        default: `${homedir()}/Documents,${homedir()}/Desktop`,
-      });
-
-      const watchPaths = parsePaths(watchPathsInput);
+      const watchPaths = await selectPaths('Select paths to monitor:', FILESYSTEM_PATH_PRESETS);
 
       if (watchPaths.length === 0) {
-        printWarning('No paths specified, filesystem monitoring will be disabled.');
+        printWarning('No paths selected, filesystem monitoring will be disabled.');
       } else {
-        warnMissingPaths(watchPaths);
+        const fsSchedule = await select({
+          message: 'Collection schedule:',
+          choices: SCHEDULE_CHOICES_WITH_HINT,
+          loop: false,
+          default: 'daily',
+        });
 
         config.sources.filesystem = {
           enabled: true,
-          schedule: 'daily',
+          schedule: fsSchedule,
           options: {
             watchPaths,
             excludePatterns: ['**/node_modules/**', '**/.git/**', '**/Library/**'],
@@ -196,7 +176,7 @@ export const initCommand = new Command('init')
       }
     }
 
-    // Step 5: Chatbot (Optional)
+    // Step 5: Chatbot
     printSection('Step 5/5: Chatbot History');
     const detectedChatbots = detectChatbotClients();
     if (detectedChatbots.length > 0) {
@@ -222,7 +202,6 @@ export const initCommand = new Command('init')
       };
     }
 
-    // Summary
     printSection('Configuration Summary');
     console.log(`  API: ${config.api.baseUrl}`);
     console.log('  Sources enabled:');
@@ -231,7 +210,6 @@ export const initCommand = new Command('init')
     console.log(`    ${config.sources.filesystem.enabled ? '✓' : '✗'} Filesystem`);
     console.log(`    ${config.sources.chatbot.enabled ? '✓' : '✗'} Chatbot`);
 
-    // Save
     const shouldSave = await confirm({
       message: `Save configuration to ${configPath}?`,
       default: true,

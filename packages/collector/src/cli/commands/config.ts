@@ -1,15 +1,21 @@
 import { Command } from 'commander';
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
 import pc from 'picocolors';
-import { input, confirm, select, checkbox } from '@inquirer/prompts';
+import { confirm, select, checkbox, Separator } from '@inquirer/prompts';
 import { loadConfig, findConfigPath } from '../../config/loader.js';
 import { writeConfig } from '../../config/writer.js';
 import { getUserConfigPath, getAllConfigPaths } from '../../config/paths.js';
 import { printError, printSuccess, printInfo, printDim } from '../utils/output.js';
 import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients } from '../detect/index.js';
-import { parsePaths } from '../utils/path.js';
-import { maskApiKey, warnMissingPaths, showMaskedKey, SCHEDULE_CHOICES } from '../utils/prompts.js';
+import {
+  maskApiKey,
+  showMaskedKey,
+  SCHEDULE_CHOICES,
+  GIT_PATH_PRESETS,
+  FILESYSTEM_PATH_PRESETS,
+  selectPaths,
+} from '../utils/prompts.js';
+import { inputApiUrl, inputApiKey } from '../utils/api.js';
 import type { CollectorConfig } from '../../config/schema.js';
 import type { BrowserType } from '../../sources/browser/types.js';
 
@@ -102,10 +108,10 @@ configCommand
 
     let hasChanges = false;
 
-    // Main menu loop
     while (true) {
       const choice = await select({
         message: 'What would you like to configure?',
+        loop: false,
         choices: [
           { name: `API Settings ${pc.dim(`(${config.api.baseUrl})`)}`, value: 'api' },
           {
@@ -122,7 +128,7 @@ configCommand
             value: 'chatbot',
           },
           { name: `Logging ${pc.dim(`(${config.logging.level})`)}`, value: 'logging' },
-          { name: pc.dim('─────────────'), value: 'separator', disabled: true },
+          new Separator(),
           { name: hasChanges ? pc.green('Save and Exit') : 'Exit', value: 'exit' },
         ],
       });
@@ -140,29 +146,13 @@ configCommand
         break;
       }
 
-      // Handle each section
       if (choice === 'api') {
-        const newUrl = await input({
-          message: 'API Base URL:',
-          default: config.api.baseUrl,
-          validate: (value) => {
-            try {
-              new URL(value);
-              return true;
-            } catch {
-              return 'Please enter a valid URL';
-            }
-          },
-        });
+        const newUrl = await inputApiUrl(config.api.baseUrl);
 
         const changeKey = await confirm({ message: 'Change API Key?', default: false });
         let newKey = config.api.apiKey;
         if (changeKey) {
-          newKey = await input({
-            message: 'New API Key:',
-            validate: (value) => (value.length > 0 ? true : 'API Key is required'),
-          });
-          showMaskedKey(newKey);
+          newKey = await inputApiKey();
         }
 
         if (newUrl !== config.api.baseUrl || newKey !== config.api.apiKey) {
@@ -187,6 +177,7 @@ configCommand
           const currentBrowsers = config.sources.browser.options.browsers || [];
           const selectedBrowsers = await checkbox({
             message: 'Select browsers:',
+            loop: false,
             choices: (['chrome', 'safari', 'arc', 'dia', 'comet'] as const).map((b) => ({
               name: b.charAt(0).toUpperCase() + b.slice(1),
               value: b,
@@ -197,6 +188,7 @@ configCommand
           const schedule = await select({
             message: 'Collection schedule:',
             choices: SCHEDULE_CHOICES,
+            loop: false,
             default: config.sources.browser.schedule,
           });
 
@@ -222,16 +214,16 @@ configCommand
 
         if (enabled) {
           const currentPaths = config.sources.git.options.scanPaths || [];
-          const pathsInput = await input({
-            message: 'Paths to scan (comma-separated):',
-            default: currentPaths.join(',') || `${homedir()}/Projects`,
-          });
-          const scanPaths = parsePaths(pathsInput);
-          warnMissingPaths(scanPaths);
+          const scanPaths = await selectPaths(
+            'Select paths to scan for git repositories:',
+            GIT_PATH_PRESETS,
+            currentPaths
+          );
 
           const schedule = await select({
             message: 'Collection schedule:',
             choices: SCHEDULE_CHOICES,
+            loop: false,
             default: config.sources.git.schedule,
           });
 
@@ -254,16 +246,12 @@ configCommand
 
         if (enabled) {
           const currentPaths = config.sources.filesystem.options.watchPaths || [];
-          const pathsInput = await input({
-            message: 'Paths to monitor (comma-separated):',
-            default: currentPaths.join(',') || `${homedir()}/Documents`,
-          });
-          const watchPaths = parsePaths(pathsInput);
-          warnMissingPaths(watchPaths);
+          const watchPaths = await selectPaths('Select paths to monitor:', FILESYSTEM_PATH_PRESETS, currentPaths);
 
           const schedule = await select({
             message: 'Collection schedule:',
             choices: SCHEDULE_CHOICES,
+            loop: false,
             default: config.sources.filesystem.schedule,
           });
 
@@ -293,6 +281,7 @@ configCommand
           const schedule = await select({
             message: 'Collection schedule:',
             choices: SCHEDULE_CHOICES,
+            loop: false,
             default: config.sources.chatbot.schedule,
           });
 
@@ -313,6 +302,7 @@ configCommand
       if (choice === 'logging') {
         const level = await select({
           message: 'Log level:',
+          loop: false,
           choices: [
             { name: 'Debug (verbose)', value: 'debug' as const },
             { name: 'Info (default)', value: 'info' as const },

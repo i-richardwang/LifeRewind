@@ -122,7 +122,6 @@ export const doctorCommand = new Command('doctor')
 
     console.log('Running diagnostics...\n');
 
-    // Synchronous checks
     const syncChecks: { name: string; result: CheckResult }[] = [
       { name: 'Node.js version', result: checkNodeVersion() },
       { name: 'Configuration file', result: checkConfigExists(customPath) },
@@ -145,7 +144,6 @@ export const doctorCommand = new Command('doctor')
       }
     }
 
-    // Async check for API
     const apiResult = await checkApiConnection(customPath);
     if (apiResult.ok) {
       printSuccess(`API connectivity: ${apiResult.message}`);

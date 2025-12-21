@@ -23,7 +23,6 @@ export const collectCommand = new Command('collect')
     const globalOpts = cmd.optsWithGlobals();
     const verbose = !!globalOpts.verbose;
 
-    // Validate source argument
     if (source && !SOURCE_TYPES.includes(source as SourceType)) {
       printError(`Invalid source: ${source}`);
       console.log(`Valid sources: ${SOURCE_TYPES.join(', ')}`);
@@ -33,7 +32,6 @@ export const collectCommand = new Command('collect')
     try {
       const config = loadConfig(globalOpts.config);
 
-      // Apply global log level overrides
       let logLevel = config.logging.level;
       if (globalOpts.verbose) logLevel = 'debug';
       if (globalOpts.quiet) logLevel = 'error';
@@ -53,7 +51,6 @@ export const collectCommand = new Command('collect')
       const spinner = ora();
 
       if (source) {
-        // Collect specific source
         if (!enabledSources.includes(source as SourceType)) {
           printError(`Source '${source}' is not enabled or not validated.`);
           process.exit(1);
@@ -63,7 +60,6 @@ export const collectCommand = new Command('collect')
         spinner.succeed(`Collection from ${source} complete`);
         showSkippedInfo(result, verbose);
       } else {
-        // Collect all enabled sources
         for (const src of enabledSources) {
           spinner.start(`Collecting from ${src}...`);
           const result = await collector.triggerCollection(src);

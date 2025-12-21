@@ -15,7 +15,6 @@ export const startCommand = new Command('start')
     try {
       const config = loadConfig(globalOpts.config);
 
-      // Apply global log level overrides
       let logLevel = config.logging.level;
       if (globalOpts.verbose) logLevel = 'debug';
       if (globalOpts.quiet) logLevel = 'error';

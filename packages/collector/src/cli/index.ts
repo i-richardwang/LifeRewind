@@ -10,7 +10,6 @@ import { configCommand } from './commands/config.js';
 import { statusCommand } from './commands/status.js';
 import { doctorCommand } from './commands/doctor.js';
 
-// Read version from package.json
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packagePath = join(__dirname, '../../package.json');
 const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
