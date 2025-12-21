@@ -1,22 +1,14 @@
 import { Command } from 'commander';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { input, confirm, select, checkbox, password } from '@inquirer/prompts';
+import { input, confirm, select, checkbox } from '@inquirer/prompts';
 import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients } from '../detect/index.js';
 import { writeConfig } from '../../config/writer.js';
 import { getUserConfigPath } from '../../config/paths.js';
 import { printBanner, printSection, printSuccess, printInfo, printDim, printWarning } from '../utils/output.js';
-import { expandPath, parsePaths } from '../utils/path.js';
+import { parsePaths } from '../utils/path.js';
+import { warnMissingPaths, showMaskedKey, SCHEDULE_CHOICES_WITH_HINT } from '../utils/prompts.js';
 import type { CollectorConfig } from '../../config/schema.js';
-
-function warnMissingPaths(paths: string[]): void {
-  for (const p of paths) {
-    const expanded = expandPath(p);
-    if (!existsSync(expanded)) {
-      printWarning(`Path does not exist: ${p}`);
-    }
-  }
-}
 
 export const initCommand = new Command('init')
   .description('Initialize configuration with interactive wizard')
@@ -76,10 +68,11 @@ export const initCommand = new Command('init')
       },
     });
 
-    config.api.apiKey = await password({
+    config.api.apiKey = await input({
       message: 'API Key:',
       validate: (value) => (value.length > 0 ? true : 'API Key is required'),
     });
+    showMaskedKey(config.api.apiKey);
 
     // Step 2: Browser History
     printSection('Step 2/5: Browser History');
@@ -113,12 +106,7 @@ export const initCommand = new Command('init')
       } else {
         const browserSchedule = await select({
           message: 'Collection schedule:',
-          choices: [
-            { name: 'Hourly', value: 'hourly' as const },
-            { name: 'Daily (recommended)', value: 'daily' as const },
-            { name: 'Weekly', value: 'weekly' as const },
-            { name: 'Manual only', value: 'manual' as const },
-          ],
+          choices: SCHEDULE_CHOICES_WITH_HINT,
           default: 'daily',
         });
 
@@ -160,12 +148,7 @@ export const initCommand = new Command('init')
 
         const gitSchedule = await select({
           message: 'Collection schedule:',
-          choices: [
-            { name: 'Hourly', value: 'hourly' as const },
-            { name: 'Daily (recommended)', value: 'daily' as const },
-            { name: 'Weekly', value: 'weekly' as const },
-            { name: 'Manual only', value: 'manual' as const },
-          ],
+          choices: SCHEDULE_CHOICES_WITH_HINT,
           default: 'daily',
         });
 
