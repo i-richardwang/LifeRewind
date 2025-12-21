@@ -76,12 +76,12 @@ const DEFAULT_SOURCES = {
     options: { scanPaths: [], excludeRepositories: [], sinceDays: 30 },
   },
   browser: {
-    enabled: false,
+    enabled: true,
     schedule: 'daily' as const,
     options: { browsers: ['chrome' as const], excludeDomains: [], sinceDays: 7 },
   },
   filesystem: {
-    enabled: false,
+    enabled: true,
     schedule: 'daily' as const,
     options: {
       watchPaths: [],
@@ -92,7 +92,7 @@ const DEFAULT_SOURCES = {
     },
   },
   chatbot: {
-    enabled: false,
+    enabled: true,
     schedule: 'daily' as const,
     options: {
       clients: ['chatwise' as const],

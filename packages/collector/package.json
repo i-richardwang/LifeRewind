@@ -1,27 +1,59 @@
 {
-  "name": "@workspace/collector",
-  "version": "0.0.1",
+  "name": "liferewind",
+  "version": "0.1.0",
+  "description": "AI-powered personal life review tool - collect your digital footprints from git, browser history, documents, and AI chatbots",
+  "keywords": [
+    "cli",
+    "data-collection",
+    "git",
+    "browser-history",
+    "productivity",
+    "life-logging",
+    "digital-footprint"
+  ],
+  "license": "MIT",
+  "author": "Richard Wang <git@xmail.ing>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/i-richardwang/LifeRewind.git",
+    "directory": "packages/collector"
+  },
+  "homepage": "https://github.com/i-richardwang/LifeRewind#readme",
+  "bugs": {
+    "url": "https://github.com/i-richardwang/LifeRewind/issues"
+  },
   "type": "module",
-  "private": true,
   "bin": {
     "liferewind": "./dist/cli/index.js"
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/core/types.d.ts",
+      "default": "./dist/core/types.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/cli/index.ts",
-    "dev:legacy": "tsx watch src/index.ts",
     "start": "node dist/cli/index.js start",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop liferewind-collector",
     "pm2:restart": "pm2 restart liferewind-collector",
     "pm2:logs": "pm2 logs liferewind-collector"
-  },
-  "exports": {
-    ".": "./dist/index.js",
-    "./types": "./dist/core/types.js",
-    "./cli": "./dist/cli/index.js"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.1.0",

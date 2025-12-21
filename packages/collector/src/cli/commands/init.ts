@@ -92,7 +92,7 @@ export const initCommand = new Command('init')
 
     const enableBrowser = await confirm({
       message: 'Enable browser history collection?',
-      default: detectedBrowsers.length > 0,
+      default: true,
     });
 
     if (enableBrowser) {
@@ -141,7 +141,7 @@ export const initCommand = new Command('init')
 
     const enableGit = await confirm({
       message: 'Enable git commit collection?',
-      default: gitInstalled,
+      default: true,
     });
 
     if (enableGit) {
@@ -184,7 +184,7 @@ export const initCommand = new Command('init')
     printSection('Step 4/5: Filesystem Changes');
     const enableFilesystem = await confirm({
       message: 'Enable filesystem monitoring?',
-      default: false,
+      default: true,
     });
 
     if (enableFilesystem) {
@@ -224,7 +224,7 @@ export const initCommand = new Command('init')
 
     const enableChatbot = await confirm({
       message: 'Enable chatbot history collection?',
-      default: detectedChatbots.length > 0,
+      default: true,
     });
 
     if (enableChatbot) {

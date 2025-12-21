@@ -1,6 +1,15 @@
-# @workspace/collector
+# liferewind
 
-Background data collection service for LifeRewind. Collects digital footprints from multiple sources and pushes to the Web API.
+[![npm version](https://img.shields.io/npm/v/liferewind.svg)](https://www.npmjs.com/package/liferewind)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+AI-powered personal life review tool - collect your digital footprints from git, browser history, documents, and AI chatbots.
+
+## Installation
+
+```bash
+npm install -g liferewind
+```
 
 ## Quick Start
 
