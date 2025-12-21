@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DataSource } from '../base.js';
-import type { CollectionResult } from '../../core/types.js';
+import type { CollectionResult, SkippedItem } from '../../core/types.js';
 import type { GitCommit, GitSourceOptions } from './types.js';
 import { expandPath, isGitRepository } from '../../utils/path.js';
 
@@ -11,6 +11,7 @@ export class GitSource extends DataSource<GitSourceOptions> {
   readonly name = 'Git Commits';
 
   private discoveredRepos: string[] = [];
+  private skippedRepos: SkippedItem[] = [];
 
   async validate(): Promise<boolean> {
     try {
@@ -82,14 +83,13 @@ export class GitSource extends DataSource<GitSourceOptions> {
     const items: GitCommit[] = [];
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - this.options.sinceDays);
+    this.skippedRepos = [];
 
     for (const repoPath of this.discoveredRepos) {
-      try {
-        const commits = this.getCommitsFromRepo(repoPath, sinceDate);
-        items.push(...commits);
+      const commits = this.getCommitsFromRepo(repoPath, sinceDate);
+      items.push(...commits);
+      if (commits.length > 0) {
         this.context.logger.debug(`Found ${commits.length} commits in ${repoPath}`);
-      } catch (error) {
-        this.context.logger.error(`Failed to get commits from ${repoPath}`, error);
       }
     }
 
@@ -103,6 +103,10 @@ export class GitSource extends DataSource<GitSourceOptions> {
         data: commit,
       })),
       collectedAt: new Date(),
+      skipped:
+        this.skippedRepos.length > 0
+          ? { count: this.skippedRepos.length, items: this.skippedRepos }
+          : undefined,
     };
   }
 
@@ -110,6 +114,7 @@ export class GitSource extends DataSource<GitSourceOptions> {
     return execFileSync('git', ['-C', repoPath, ...args], {
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024,
+      stdio: ['pipe', 'pipe', 'pipe'], // Capture stderr instead of inheriting
     });
   }
 
@@ -137,9 +142,19 @@ export class GitSource extends DataSource<GitSourceOptions> {
         return { ...commit, stats };
       });
     } catch (error) {
+      if (this.isEmptyRepoError(error)) {
+        this.skippedRepos.push({ path: repoPath, reason: 'empty repository' });
+        this.context.logger.debug(`Skipping empty repository: ${repoPath}`);
+        return [];
+      }
       this.context.logger.warn(`Failed to get git log from ${repoPath}`, error);
       return [];
     }
+  }
+
+  private isEmptyRepoError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('does not have any commits yet');
   }
 
   private parseGitLog(output: string, repoPath: string): Omit<GitCommit, 'stats'>[] {

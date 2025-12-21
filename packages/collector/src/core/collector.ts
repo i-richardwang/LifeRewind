@@ -3,7 +3,7 @@ import { ApiClient } from '../api/client.js';
 import { sourceRegistry } from '../sources/registry.js';
 import type { CollectorConfig } from '../config/schema.js';
 import type { DataSource } from '../sources/base.js';
-import type { SourceType } from './types.js';
+import type { CollectionResult, SourceType } from './types.js';
 import type { Logger } from '../utils/logger.js';
 
 export class Collector {
@@ -67,7 +67,7 @@ export class Collector {
     this.logger.info('Collector stopped');
   }
 
-  async collectAndPush(sourceType: SourceType): Promise<void> {
+  async collectAndPush(sourceType: SourceType): Promise<CollectionResult | undefined> {
     const source = this.sources.get(sourceType)!;
 
     try {
@@ -76,20 +76,22 @@ export class Collector {
 
       if (!result.success) {
         this.logger.error(`Collection failed for ${sourceType}`, result.error);
-        return;
+        return result;
       }
 
       if (result.itemsCollected === 0) {
         this.logger.info(`No new items from ${sourceType}`);
-        return;
+        return result;
       }
 
       this.logger.info(`Collected ${result.itemsCollected} items from ${sourceType}`);
 
       const response = await this.apiClient.pushData(result);
       this.logger.info(`Pushed to API: ${response.data.itemsReceived} received, ${response.data.itemsInserted} inserted`);
+      return result;
     } catch (error) {
       this.logger.error(`Error in collect/push cycle for ${sourceType}`, error);
+      return undefined;
     }
   }
 
@@ -99,8 +101,8 @@ export class Collector {
     }
   }
 
-  async triggerCollection(sourceType: SourceType): Promise<void> {
-    await this.collectAndPush(sourceType);
+  async triggerCollection(sourceType: SourceType): Promise<CollectionResult | undefined> {
+    return this.collectAndPush(sourceType);
   }
 
   getEnabledSources(): SourceType[] {

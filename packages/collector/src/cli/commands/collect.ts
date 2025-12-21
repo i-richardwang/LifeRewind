@@ -4,14 +4,24 @@ import { Collector } from '../../core/collector.js';
 import { loadConfig } from '../../config/loader.js';
 import { createLogger } from '../../utils/logger.js';
 import { registerBuiltinSources } from '../../sources/index.js';
-import { printError, printSuccess } from '../utils/output.js';
-import { SOURCE_TYPES, type SourceType } from '../../core/types.js';
+import { printError, printSuccess, printInfo } from '../utils/output.js';
+import { SOURCE_TYPES, type SourceType, type CollectionResult } from '../../core/types.js';
+
+function showSkippedInfo(result: CollectionResult | undefined, verbose: boolean): void {
+  if (!verbose || !result?.skipped?.count) return;
+
+  printInfo(`Skipped ${result.skipped.count} items:`);
+  for (const item of result.skipped.items) {
+    console.log(`  - ${item.path} (${item.reason})`);
+  }
+}
 
 export const collectCommand = new Command('collect')
   .description('Manually trigger data collection')
   .argument('[source]', 'specific source to collect (git, browser, filesystem, chatbot)')
   .action(async (source: string | undefined, _options, cmd) => {
     const globalOpts = cmd.optsWithGlobals();
+    const verbose = !!globalOpts.verbose;
 
     // Validate source argument
     if (source && !SOURCE_TYPES.includes(source as SourceType)) {
@@ -49,14 +59,16 @@ export const collectCommand = new Command('collect')
           process.exit(1);
         }
         spinner.start(`Collecting from ${source}...`);
-        await collector.triggerCollection(source as SourceType);
+        const result = await collector.triggerCollection(source as SourceType);
         spinner.succeed(`Collection from ${source} complete`);
+        showSkippedInfo(result, verbose);
       } else {
         // Collect all enabled sources
         for (const src of enabledSources) {
           spinner.start(`Collecting from ${src}...`);
-          await collector.triggerCollection(src);
+          const result = await collector.triggerCollection(src);
           spinner.succeed(`Collection from ${src} complete`);
+          showSkippedInfo(result, verbose);
         }
       }
 

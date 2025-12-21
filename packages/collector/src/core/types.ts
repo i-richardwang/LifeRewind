@@ -14,6 +14,18 @@ export interface CollectedItem {
   data: unknown;
 }
 
+/** A single skipped item with path and reason */
+export interface SkippedItem {
+  path: string;
+  reason: string;
+}
+
+/** Information about skipped items during collection */
+export interface SkippedInfo {
+  count: number;
+  items: SkippedItem[];
+}
+
 /** Result from a collection operation */
 export interface CollectionResult {
   sourceType: SourceType;
@@ -22,6 +34,8 @@ export interface CollectionResult {
   items: CollectedItem[];
   error?: Error;
   collectedAt: Date;
+  /** Information about items that were skipped (e.g., empty repos) */
+  skipped?: SkippedInfo;
 }
 
 /** Configuration for a specific data source */

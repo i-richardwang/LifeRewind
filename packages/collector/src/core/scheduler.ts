@@ -27,7 +27,7 @@ export class Scheduler {
   schedule(
     sourceType: SourceType,
     frequency: ScheduleFrequency,
-    handler: () => Promise<void>
+    handler: () => Promise<unknown>
   ): void {
     this.unschedule(sourceType);
 
