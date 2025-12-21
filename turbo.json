@@ -6,7 +6,9 @@
     "LIFEREWIND_API_URL",
     "LIFEREWIND_API_KEY",
     "COLLECTOR_CONFIG_PATH",
-    "COLLECTOR_RUN_ON_START"
+    "COLLECTOR_RUN_ON_START",
+    "EDITOR",
+    "VISUAL"
   ],
   "tasks": {
     "build": {

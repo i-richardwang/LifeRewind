@@ -114,8 +114,7 @@ export class GitSource extends DataSource<GitSourceOptions> {
   }
 
   private getCommitsFromRepo(repoPath: string, since: Date): GitCommit[] {
-    const isoString = since.toISOString();
-    const sinceStr = isoString.split('T')[0] ?? isoString.slice(0, 10);
+    const sinceStr = since.toISOString().split('T')[0];
 
     // Use NULL as separator for safe parsing of multi-line commit messages
     const fieldSep = '%x00';

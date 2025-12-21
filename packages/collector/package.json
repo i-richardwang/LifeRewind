@@ -3,10 +3,14 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
+  "bin": {
+    "liferewind": "./dist/cli/index.js"
+  },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx watch src/cli/index.ts",
+    "dev:legacy": "tsx watch src/index.ts",
+    "start": "node dist/cli/index.js start",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "pm2:start": "pm2 start ecosystem.config.cjs",
@@ -16,12 +20,17 @@
   },
   "exports": {
     ".": "./dist/index.js",
-    "./types": "./dist/core/types.js"
+    "./types": "./dist/core/types.js",
+    "./cli": "./dist/cli/index.js"
   },
   "dependencies": {
+    "@inquirer/prompts": "^8.1.0",
     "better-sqlite3": "^12.5.0",
+    "commander": "^14.0.2",
     "minimatch": "^10.1.1",
     "node-cron": "^3.0.3",
+    "ora": "^9.0.0",
+    "picocolors": "^1.1.1",
     "zod": "^4.2.1"
   },
   "devDependencies": {

@@ -1,6 +1,9 @@
 /** Unique identifier for each data source type */
 export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot';
 
+/** List of all valid source types */
+export const SOURCE_TYPES: readonly SourceType[] = ['git', 'browser', 'filesystem', 'chatbot'] as const;
+
 /** Schedule frequency for data collection */
 export type ScheduleFrequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'manual';
 

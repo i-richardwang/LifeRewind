@@ -2,6 +2,19 @@
 
 Background data collection service for LifeRewind. Collects digital footprints from multiple sources and pushes to the Web API.
 
+## Quick Start
+
+```bash
+# Interactive configuration wizard
+liferewind init
+
+# Start collecting
+liferewind start
+
+# Manual collection
+liferewind collect
+```
+
 ## Data Sources
 
 | Type | Status | Description |
@@ -13,7 +26,15 @@ Background data collection service for LifeRewind. Collects digital footprints f
 
 ## Configuration
 
-Create `collector.config.json` (see `collector.config.example.json`):
+Run `liferewind init` for interactive setup, or create config manually.
+
+Config file lookup order:
+1. `~/.liferewind/config.json` (primary user config)
+2. `~/.config/liferewind/collector.json`
+3. `~/.liferewind-collector.json`
+4. `./collector.config.json`
+
+Example configuration (see `collector.config.example.json`):
 
 ```json
 {
@@ -27,12 +48,20 @@ Create `collector.config.json` (see `collector.config.example.json`):
       "schedule": "daily",
       "options": {
         "scanPaths": ["~/Documents", "~/Projects"],
-        "excludeRepositories": [],
         "sinceDays": 30
       }
     },
-    "filesystem": {
+    "browser": {
       "enabled": true,
+      "schedule": "daily",
+      "options": {
+        "browsers": ["chrome", "safari", "arc"],
+        "excludeDomains": ["localhost", "127.0.0.1"],
+        "sinceDays": 7
+      }
+    },
+    "filesystem": {
+      "enabled": false,
       "schedule": "daily",
       "options": {
         "watchPaths": ["~/Documents"],
@@ -43,7 +72,7 @@ Create `collector.config.json` (see `collector.config.example.json`):
       }
     },
     "chatbot": {
-      "enabled": true,
+      "enabled": false,
       "schedule": "daily",
       "options": {
         "clients": ["chatwise"],
@@ -51,31 +80,52 @@ Create `collector.config.json` (see `collector.config.example.json`):
         "includeContent": true
       }
     }
+  },
+  "logging": {
+    "level": "info"
   }
 }
 ```
 
 **Note:** Git repositories are automatically excluded from filesystem scanning.
 
-Config file lookup order:
-1. `./collector.config.json`
-2. `~/.config/liferewind/collector.json`
-3. `~/.liferewind-collector.json`
-
-Or use environment variables:
+Environment variables (fallback):
 ```bash
 export LIFEREWIND_API_URL="http://localhost:3000"
 export LIFEREWIND_API_KEY="your-api-key"
 ```
 
-## Usage
+## CLI Commands
 
 ```bash
-# Development
+# Configuration
+liferewind init              # Interactive setup wizard
+liferewind config show       # Display current config
+liferewind config edit       # Open config in editor
+liferewind config validate   # Validate config file
+liferewind config path       # Show config file locations
+
+# Collection
+liferewind start             # Start collector service
+liferewind start --run-once  # Collect once and exit
+liferewind collect           # Manual trigger (all sources)
+liferewind collect git       # Manual trigger (specific source)
+
+# Diagnostics
+liferewind status            # Show service status
+liferewind doctor            # Check environment issues
+```
+
+## Development
+
+```bash
+# Development with watch
 pnpm dev
 
-# Production
+# Build
 pnpm build
+
+# Production
 pnpm start
 
 # PM2 daemon
@@ -98,7 +148,7 @@ pnpm pm2:logs
 
 1. Create a new directory under `src/sources/`
 2. Extend the `DataSource<TOptions>` base class
-3. Register in `src/index.ts`
+3. Register in `src/sources/index.ts`
 
 ```typescript
 // src/sources/my-source/index.ts
@@ -121,7 +171,7 @@ export class MySource extends DataSource<MySourceOptions> {
   }
 }
 
-// src/index.ts
+// src/sources/index.ts
 sourceRegistry.register('my-source', (config, ctx) => new MySource(config, ctx));
 ```
 
@@ -129,7 +179,12 @@ sourceRegistry.register('my-source', (config, ctx) => new MySource(config, ctx))
 
 ```
 src/
-├── index.ts          # Entry point
+├── index.ts          # Library exports
+├── cli/              # CLI commands
+│   ├── index.ts      # CLI entry point
+│   ├── commands/     # Command implementations
+│   ├── detect/       # Environment detection
+│   └── utils/        # CLI utilities
 ├── core/
 │   ├── types.ts      # Type definitions
 │   ├── collector.ts  # Main orchestrator
@@ -137,20 +192,18 @@ src/
 ├── sources/
 │   ├── base.ts       # DataSource base class
 │   ├── registry.ts   # Source registry
+│   ├── index.ts      # Source registration
 │   ├── git/          # Git data source
 │   ├── browser/      # Browser history (multi-browser)
 │   ├── filesystem/   # Filesystem changes
 │   └── chatbot/      # Chatbot history (multi-client)
-│       ├── index.ts
-│       ├── types.ts
-│       └── readers/
-│           ├── base.ts      # ChatbotReader base class
-│           └── chatwise.ts  # ChatWise implementation
 ├── api/
 │   └── client.ts     # API client
 ├── config/
 │   ├── schema.ts     # Config schema (Zod)
-│   └── loader.ts     # Config loader
+│   ├── loader.ts     # Config loader
+│   ├── writer.ts     # Config writer
+│   └── paths.ts      # Config path constants
 └── utils/
     ├── logger.ts     # Logger
     └── retry.ts      # Retry with backoff

@@ -20,8 +20,8 @@
       "enabled": true,
       "schedule": "daily",
       "options": {
-        "browsers": ["chrome", "arc", "safari", "dia", "comet"],
-        "excludeDomains": ["localhost", "127.0.0.1", "google.com", "baidu.com"],
+        "browsers": ["chrome", "arc", "safari"],
+        "excludeDomains": ["localhost", "127.0.0.1"],
         "sinceDays": 7
       }
     },
@@ -36,12 +36,13 @@
         "includeContent": true
       }
     },
-    "ai-chat": {
+    "chatbot": {
       "enabled": false,
-      "schedule": "weekly",
+      "schedule": "daily",
       "options": {
-        "providers": [],
-        "exportPaths": {}
+        "clients": ["chatwise"],
+        "sinceDays": 30,
+        "includeContent": true
       }
     }
   },

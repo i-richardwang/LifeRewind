@@ -1,6 +1,5 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 
 /**
  * Expand a path that may start with ~ or ~/ to an absolute path.
@@ -16,9 +15,11 @@ export function expandPath(path: string): string {
 }
 
 /**
- * Check if a directory is a git repository (contains .git folder).
+ * Parse comma-separated paths and trim whitespace
  */
-export function isGitRepository(dirPath: string): boolean {
-  const gitDir = resolve(dirPath, '.git');
-  return existsSync(gitDir);
+export function parsePaths(input: string): string[] {
+  return input
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
 }

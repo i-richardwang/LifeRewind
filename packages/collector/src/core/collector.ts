@@ -29,17 +29,7 @@ export class Collector {
         continue;
       }
 
-      if (!sourceRegistry.has(sourceType as SourceType)) {
-        this.logger.warn(`Unknown source type: ${sourceType}`);
-        continue;
-      }
-
-      const source = sourceRegistry.create(sourceType as SourceType, sourceConfig, context);
-
-      if (!source) {
-        this.logger.warn(`Failed to create source: ${sourceType}`);
-        continue;
-      }
+      const source = sourceRegistry.create(sourceType as SourceType, sourceConfig, context)!;
 
       const isValid = await source.validate();
       if (!isValid) {
@@ -78,8 +68,7 @@ export class Collector {
   }
 
   async collectAndPush(sourceType: SourceType): Promise<void> {
-    const source = this.sources.get(sourceType);
-    if (!source) return;
+    const source = this.sources.get(sourceType)!;
 
     try {
       this.logger.info(`Collecting from ${sourceType}...`);

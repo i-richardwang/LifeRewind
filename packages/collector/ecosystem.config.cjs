@@ -3,7 +3,8 @@ module.exports = {
   apps: [
     {
       name: 'liferewind-collector',
-      script: './dist/index.js',
+      script: './dist/cli/index.js',
+      args: 'start',
       cwd: __dirname,
       instances: 1,
       autorestart: true,

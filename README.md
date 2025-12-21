@@ -102,7 +102,28 @@ pnpm db:migrate
 
 #### Collector
 
-Create `packages/collector/collector.config.json`:
+**Quick Start (Recommended):**
+
+```bash
+cd packages/collector
+
+# Interactive configuration wizard
+pnpm exec liferewind init
+
+# Start collecting
+pnpm exec liferewind start
+```
+
+The wizard will auto-detect installed browsers and create config at `~/.liferewind/config.json`.
+
+**Manual Configuration:**
+
+Create config file (searched in order):
+1. `~/.liferewind/config.json` (recommended)
+2. `~/.config/liferewind/collector.json`
+3. `./collector.config.json`
+
+Example configuration:
 
 ```json
 {
@@ -133,6 +154,7 @@ Create `packages/collector/collector.config.json`:
       "schedule": "daily",
       "options": {
         "watchPaths": ["~/Documents"],
+        "excludePatterns": ["**/node_modules/**", "**/.git/**", "**/Library/**"],
         "fileTypes": [".md", ".txt", ".docx"],
         "sinceDays": 7
       }

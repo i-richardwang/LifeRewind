@@ -1,17 +1,11 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { homedir } from 'node:os';
 import { ZodError } from 'zod';
 import { configSchema, type CollectorConfig } from './schema.js';
-
-const CONFIG_PATHS = [
-  './collector.config.json',
-  resolve(homedir(), '.config/liferewind/collector.json'),
-  resolve(homedir(), '.liferewind-collector.json'),
-];
+import { getAllConfigPaths } from './paths.js';
 
 export function loadConfig(customPath?: string): CollectorConfig {
-  const paths = customPath ? [customPath, ...CONFIG_PATHS] : CONFIG_PATHS;
+  // Build search paths: custom path first, then standard paths
+  const paths = customPath ? [customPath, ...getAllConfigPaths()] : getAllConfigPaths();
 
   for (const configPath of paths) {
     if (existsSync(configPath)) {
@@ -58,6 +52,19 @@ export function loadConfig(customPath?: string): CollectorConfig {
   }
 
   throw new Error(
-    'No configuration found. Create collector.config.json or set LIFEREWIND_API_URL and LIFEREWIND_API_KEY environment variables.'
+    'No configuration found. Run `liferewind init` to create one, or set LIFEREWIND_API_URL and LIFEREWIND_API_KEY environment variables.'
   );
+}
+
+/**
+ * Find and return the path of the first existing config file
+ */
+export function findConfigPath(customPath?: string): string | null {
+  const paths = customPath ? [customPath, ...getAllConfigPaths()] : getAllConfigPaths();
+  for (const configPath of paths) {
+    if (existsSync(configPath)) {
+      return configPath;
+    }
+  }
+  return null;
 }
