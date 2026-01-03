@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { confirm, select, checkbox, input } from '@inquirer/prompts';
-import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients } from '../detect/index.js';
+import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients, getGitUserInfo } from '../detect/index.js';
 import { writeConfig } from '../../config/writer.js';
 import { getUserConfigPath } from '../../config/paths.js';
 import { printBanner, printSection, printSuccess, printInfo, printDim, printWarning } from '../utils/output.js';
@@ -109,7 +109,11 @@ export const initCommand = new Command('init')
     // Step 3: Git Commits
     printSection('Step 3/6: Git Commits');
     const gitInstalled = detectGitInstalled();
+    const gitUser = getGitUserInfo();
     printDim(gitInstalled ? '  Git is installed' : '  Git not found');
+    if (gitUser.email) {
+      printDim(`  User: ${gitUser.name || 'unknown'} <${gitUser.email}>`);
+    }
 
     const enableGit = await confirm({
       message: 'Enable git commit collection?',
@@ -122,6 +126,18 @@ export const initCommand = new Command('init')
       if (scanPaths.length === 0) {
         printWarning('No paths selected, git collection will be disabled.');
       } else {
+        // Ask about author filtering
+        let authors: string[] | undefined;
+        if (gitUser.email) {
+          const filterByAuthor = await confirm({
+            message: `Only collect your commits? (filter by ${gitUser.email})`,
+            default: true,
+          });
+          if (filterByAuthor) {
+            authors = [gitUser.email];
+          }
+        }
+
         const gitSchedule = await select({
           message: 'Collection schedule:',
           choices: SCHEDULE_CHOICES_WITH_HINT,
@@ -135,6 +151,7 @@ export const initCommand = new Command('init')
           options: {
             ...DEFAULT_SOURCES.git.options,
             scanPaths,
+            ...(authors && { authors }),
           },
         };
       }
@@ -241,7 +258,9 @@ export const initCommand = new Command('init')
     console.log(`  API: ${config.api.baseUrl}`);
     console.log('  Sources enabled:');
     console.log(`    ${config.sources.browser.enabled ? '✓' : '✗'} Browser`);
-    console.log(`    ${config.sources.git.enabled ? '✓' : '✗'} Git`);
+    const gitAuthors = config.sources.git.options.authors;
+    const gitAuthorInfo = gitAuthors?.length ? ` (author: ${gitAuthors[0]})` : '';
+    console.log(`    ${config.sources.git.enabled ? '✓' : '✗'} Git${config.sources.git.enabled ? gitAuthorInfo : ''}`);
     console.log(`    ${config.sources.filesystem.enabled ? '✓' : '✗'} Filesystem`);
     console.log(`    ${config.sources.chatbot.enabled ? '✓' : '✗'} Chatbot`);
 

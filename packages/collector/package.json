@@ -1,6 +1,6 @@
 {
   "name": "liferewind",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "AI-powered personal life review tool - collect your digital footprints from git, browser history, documents, and AI chatbots",
   "keywords": [
     "cli",
