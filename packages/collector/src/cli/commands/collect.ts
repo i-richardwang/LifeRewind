@@ -6,6 +6,7 @@ import { createLogger } from '../../utils/logger.js';
 import { registerBuiltinSources } from '../../sources/index.js';
 import { printError, printSuccess, printInfo } from '../utils/output.js';
 import { SOURCE_TYPES, type SourceType, type CollectionResult } from '../../core/types.js';
+import type { CollectorConfig } from '../../config/schema.js';
 
 function showSkippedInfo(result: CollectionResult | undefined, verbose: boolean): void {
   if (!verbose || !result?.skipped?.count) return;
@@ -16,12 +17,47 @@ function showSkippedInfo(result: CollectionResult | undefined, verbose: boolean)
   }
 }
 
+/** Apply initialSinceDays to sinceDays for initial collection */
+function applyInitialSinceDays(config: CollectorConfig): CollectorConfig {
+  return {
+    ...config,
+    sources: {
+      git: config.sources.git.options.initialSinceDays
+        ? {
+            ...config.sources.git,
+            options: { ...config.sources.git.options, sinceDays: config.sources.git.options.initialSinceDays },
+          }
+        : config.sources.git,
+      browser: config.sources.browser.options.initialSinceDays
+        ? {
+            ...config.sources.browser,
+            options: { ...config.sources.browser.options, sinceDays: config.sources.browser.options.initialSinceDays },
+          }
+        : config.sources.browser,
+      filesystem: config.sources.filesystem.options.initialSinceDays
+        ? {
+            ...config.sources.filesystem,
+            options: { ...config.sources.filesystem.options, sinceDays: config.sources.filesystem.options.initialSinceDays },
+          }
+        : config.sources.filesystem,
+      chatbot: config.sources.chatbot.options.initialSinceDays
+        ? {
+            ...config.sources.chatbot,
+            options: { ...config.sources.chatbot.options, sinceDays: config.sources.chatbot.options.initialSinceDays },
+          }
+        : config.sources.chatbot,
+    },
+  };
+}
+
 export const collectCommand = new Command('collect')
   .description('Manually trigger data collection')
   .argument('[source]', 'specific source to collect (git, browser, filesystem, chatbot)')
-  .action(async (source: string | undefined, _options, cmd) => {
+  .option('-i, --initial', 'use extended time range for initial collection')
+  .action(async (source: string | undefined, options, cmd) => {
     const globalOpts = cmd.optsWithGlobals();
     const verbose = !!globalOpts.verbose;
+    const isInitial = !!options.initial;
 
     if (source && !SOURCE_TYPES.includes(source as SourceType)) {
       printError(`Invalid source: ${source}`);
@@ -30,7 +66,13 @@ export const collectCommand = new Command('collect')
     }
 
     try {
-      const config = loadConfig(globalOpts.config);
+      let config = loadConfig(globalOpts.config);
+
+      // Apply initialSinceDays when --initial flag is used
+      if (isInitial) {
+        config = applyInitialSinceDays(config);
+        printInfo('Using extended time range for initial collection');
+      }
 
       let logLevel = config.logging.level;
       if (globalOpts.verbose) logLevel = 'debug';

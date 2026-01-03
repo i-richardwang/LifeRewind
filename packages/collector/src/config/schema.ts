@@ -8,6 +8,7 @@ const gitOptionsSchema = z.object({
   excludeRepositories: z.array(z.string()).optional(),
   authors: z.array(z.string()).optional(),
   sinceDays: z.number(),
+  initialSinceDays: z.number().optional(),
 });
 
 const gitSourceConfigSchema = z.object({
@@ -21,6 +22,7 @@ const browserOptionsSchema = z.object({
   browsers: z.array(z.enum(['chrome', 'safari', 'arc', 'dia', 'comet'])),
   excludeDomains: z.array(z.string()),
   sinceDays: z.number(),
+  initialSinceDays: z.number().optional(),
 });
 
 const browserSourceConfigSchema = z.object({
@@ -34,7 +36,8 @@ const filesystemOptionsSchema = z.object({
   watchPaths: z.array(z.string()),
   excludePatterns: z.array(z.string()),
   fileTypes: z.array(z.string()).optional(),
-  sinceDays: z.number().default(7),
+  sinceDays: z.number(),
+  initialSinceDays: z.number().optional(),
   maxFileSize: z.number().optional(),
   includeContent: z.boolean().default(true),
 });
@@ -48,7 +51,8 @@ const filesystemSourceConfigSchema = z.object({
 // Chatbot source
 const chatbotOptionsSchema = z.object({
   clients: z.array(z.enum(['chatwise'])),
-  sinceDays: z.number().default(30),
+  sinceDays: z.number(),
+  initialSinceDays: z.number().optional(),
   includeContent: z.boolean().default(true),
   maxMessagesPerChat: z.number().optional(),
   excludeModels: z.array(z.string()).optional(),
@@ -69,16 +73,16 @@ const sourcesSchema = z.object({
 });
 
 // Default values defined once
-const DEFAULT_SOURCES = {
+export const DEFAULT_SOURCES = {
   git: {
     enabled: true,
     schedule: 'daily' as const,
-    options: { scanPaths: [], excludeRepositories: [], sinceDays: 30 },
+    options: { scanPaths: [], excludeRepositories: [], sinceDays: 2, initialSinceDays: 90 },
   },
   browser: {
     enabled: true,
     schedule: 'daily' as const,
-    options: { browsers: ['chrome' as const], excludeDomains: [], sinceDays: 7 },
+    options: { browsers: ['chrome' as const], excludeDomains: [], sinceDays: 2, initialSinceDays: 30 },
   },
   filesystem: {
     enabled: true,
@@ -87,7 +91,8 @@ const DEFAULT_SOURCES = {
       watchPaths: [],
       excludePatterns: ['**/node_modules/**', '**/.git/**', '**/Library/**', '**/AppData/**'],
       fileTypes: ['.md', '.txt', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.pdf', '.pages', '.numbers', '.key'],
-      sinceDays: 7,
+      sinceDays: 2,
+      initialSinceDays: 30,
       includeContent: true,
     },
   },
@@ -96,7 +101,8 @@ const DEFAULT_SOURCES = {
     schedule: 'daily' as const,
     options: {
       clients: ['chatwise' as const],
-      sinceDays: 30,
+      sinceDays: 2,
+      initialSinceDays: 90,
       includeContent: true,
     },
   },

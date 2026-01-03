@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { existsSync } from 'node:fs';
-import { confirm, select, checkbox } from '@inquirer/prompts';
+import { spawnSync } from 'node:child_process';
+import { confirm, select, checkbox, input } from '@inquirer/prompts';
 import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients } from '../detect/index.js';
 import { writeConfig } from '../../config/writer.js';
 import { getUserConfigPath } from '../../config/paths.js';
@@ -12,7 +13,21 @@ import {
   selectPaths,
 } from '../utils/prompts.js';
 import { inputApiUrl, inputApiKey } from '../utils/api.js';
-import type { CollectorConfig } from '../../config/schema.js';
+import { DEFAULT_SOURCES, type CollectorConfig } from '../../config/schema.js';
+
+/** Create initial config with all sources disabled */
+function createInitialConfig(): CollectorConfig {
+  return {
+    api: { baseUrl: '', apiKey: '', timeout: 30000, retryAttempts: 3 },
+    sources: {
+      git: { ...DEFAULT_SOURCES.git, enabled: false, options: { ...DEFAULT_SOURCES.git.options, scanPaths: [] } },
+      browser: { ...DEFAULT_SOURCES.browser, enabled: false, options: { ...DEFAULT_SOURCES.browser.options, browsers: [] } },
+      filesystem: { ...DEFAULT_SOURCES.filesystem, enabled: false, options: { ...DEFAULT_SOURCES.filesystem.options, watchPaths: [] } },
+      chatbot: { ...DEFAULT_SOURCES.chatbot, enabled: false, options: { ...DEFAULT_SOURCES.chatbot.options, clients: [] } },
+    },
+    logging: { level: 'info' },
+  };
+}
 
 export const initCommand = new Command('init')
   .description('Initialize configuration with interactive wizard')
@@ -35,33 +50,15 @@ export const initCommand = new Command('init')
 
     printBanner();
 
-    const config: CollectorConfig = {
-      api: { baseUrl: '', apiKey: '', timeout: 30000, retryAttempts: 3 },
-      sources: {
-        git: { enabled: false, schedule: 'daily', options: { scanPaths: [], sinceDays: 30 } },
-        browser: { enabled: false, schedule: 'daily', options: { browsers: [], excludeDomains: [], sinceDays: 7 } },
-        filesystem: {
-          enabled: false,
-          schedule: 'daily',
-          options: {
-            watchPaths: [],
-            excludePatterns: ['**/node_modules/**', '**/.git/**', '**/Library/**'],
-            sinceDays: 7,
-            includeContent: true,
-          },
-        },
-        chatbot: { enabled: false, schedule: 'daily', options: { clients: [], sinceDays: 30, includeContent: true } },
-      },
-      logging: { level: 'info' },
-    };
+    const config = createInitialConfig();
 
     // Step 1: API Configuration
-    printSection('Step 1/5: API Configuration');
+    printSection('Step 1/6: API Configuration');
     config.api.baseUrl = await inputApiUrl();
     config.api.apiKey = await inputApiKey();
 
     // Step 2: Browser History
-    printSection('Step 2/5: Browser History');
+    printSection('Step 2/6: Browser History');
     const detectedBrowsers = detectInstalledBrowsers();
     if (detectedBrowsers.length > 0) {
       printDim(`  Detected: ${detectedBrowsers.join(', ')}`);
@@ -101,16 +98,16 @@ export const initCommand = new Command('init')
           enabled: true,
           schedule: browserSchedule,
           options: {
+            ...DEFAULT_SOURCES.browser.options,
             browsers: selectedBrowsers,
             excludeDomains: ['localhost', '127.0.0.1'],
-            sinceDays: 7,
           },
         };
       }
     }
 
     // Step 3: Git Commits
-    printSection('Step 3/5: Git Commits');
+    printSection('Step 3/6: Git Commits');
     const gitInstalled = detectGitInstalled();
     printDim(gitInstalled ? '  Git is installed' : '  Git not found');
 
@@ -136,15 +133,15 @@ export const initCommand = new Command('init')
           enabled: true,
           schedule: gitSchedule,
           options: {
+            ...DEFAULT_SOURCES.git.options,
             scanPaths,
-            sinceDays: 30,
           },
         };
       }
     }
 
     // Step 4: Filesystem
-    printSection('Step 4/5: Filesystem Changes');
+    printSection('Step 4/6: Filesystem Changes');
     const enableFilesystem = await confirm({
       message: 'Enable filesystem monitoring?',
       default: true,
@@ -167,17 +164,15 @@ export const initCommand = new Command('init')
           enabled: true,
           schedule: fsSchedule,
           options: {
+            ...DEFAULT_SOURCES.filesystem.options,
             watchPaths,
-            excludePatterns: ['**/node_modules/**', '**/.git/**', '**/Library/**'],
-            sinceDays: 7,
-            includeContent: true,
           },
         };
       }
     }
 
     // Step 5: Chatbot
-    printSection('Step 5/5: Chatbot History');
+    printSection('Step 5/6: Chatbot History');
     const detectedChatbots = detectChatbotClients();
     if (detectedChatbots.length > 0) {
       printDim(`  Detected: ${detectedChatbots.join(', ')}`);
@@ -195,11 +190,51 @@ export const initCommand = new Command('init')
         enabled: true,
         schedule: 'daily',
         options: {
+          ...DEFAULT_SOURCES.chatbot.options,
           clients: detectedChatbots.length > 0 ? detectedChatbots : ['chatwise'],
-          sinceDays: 30,
-          includeContent: true,
         },
       };
+    }
+
+    // Step 6: Initial Collection Settings
+    printSection('Step 6/6: Initial Collection');
+    printDim('  Configure how far back to collect data on the first run.');
+    printDim('  Daily collection uses a shorter range (2 days by default).');
+    console.log();
+
+    const customizeInitial = await confirm({
+      message: 'Customize initial collection range?',
+      default: false,
+    });
+
+    if (customizeInitial) {
+      const initialDaysInput = await input({
+        message: 'Days to collect on first run (applies to all sources):',
+        default: '90',
+        validate: (value) => {
+          const num = parseInt(value, 10);
+          if (isNaN(num) || num < 1 || num > 365) {
+            return 'Please enter a number between 1 and 365';
+          }
+          return true;
+        },
+      });
+
+      const initialDays = parseInt(initialDaysInput, 10);
+
+      // Apply to all enabled sources
+      if (config.sources.git.enabled) {
+        config.sources.git.options.initialSinceDays = initialDays;
+      }
+      if (config.sources.browser.enabled) {
+        config.sources.browser.options.initialSinceDays = initialDays;
+      }
+      if (config.sources.filesystem.enabled) {
+        config.sources.filesystem.options.initialSinceDays = initialDays;
+      }
+      if (config.sources.chatbot.enabled) {
+        config.sources.chatbot.options.initialSinceDays = initialDays;
+      }
     }
 
     printSection('Configuration Summary');
@@ -218,12 +253,33 @@ export const initCommand = new Command('init')
     if (shouldSave) {
       writeConfig(config, configPath);
       printSuccess('Configuration saved!');
-      console.log(`
+
+      const runInitialCollection = await confirm({
+        message: 'Run initial collection now? (uses extended time range)',
+        default: true,
+      });
+
+      if (runInitialCollection) {
+        console.log();
+        printInfo('Starting initial collection...');
+        console.log();
+
+        const result = spawnSync(process.execPath, [process.argv[1] as string, 'collect', '--initial'], {
+          stdio: 'inherit',
+          cwd: process.cwd(),
+        });
+
+        if (result.status !== 0) {
+          printWarning('Initial collection encountered issues. You can retry with: liferewind collect --initial');
+        }
+      } else {
+        console.log(`
   Next steps:
-    Run 'liferewind start' to begin collecting data
-    Run 'liferewind collect' for immediate collection
+    Run 'liferewind collect --initial' for first-time collection (extended range)
+    Run 'liferewind start' to begin scheduled collection
     Run 'liferewind config edit' to modify settings
 `);
+      }
     } else {
       printInfo('Configuration not saved.');
     }
