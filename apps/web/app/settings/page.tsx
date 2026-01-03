@@ -30,6 +30,7 @@ export default async function SettingsPage() {
   const llmKeyConfigured = !!process.env.LLM_API_KEY;
   const llmBaseUrl = process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
   const llmModel = process.env.LLM_MODEL || 'gpt-4o';
+  const llmLanguage = process.env.LLM_LANGUAGE || 'English';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -82,6 +83,10 @@ export default async function SettingsPage() {
                     <div className="flex justify-between">
                       <dt className="text-muted-foreground">Model</dt>
                       <dd className="font-mono">{llmModel}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Language</dt>
+                      <dd className="font-mono">{llmLanguage}</dd>
                     </div>
                   </dl>
                 </CardContent>

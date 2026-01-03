@@ -209,6 +209,7 @@ async function generateAIContent(
   const periodLabel = period === 'week' ? 'Weekly' : 'Monthly';
   const dateRange = `${format(periodStart, 'MMM d')} - ${format(periodEnd, 'MMM d, yyyy')}`;
   const context = buildPromptContext(data);
+  const language = process.env.LLM_LANGUAGE || 'English';
 
   const prompt = `You are analyzing a user's digital footprints to create a ${periodLabel.toLowerCase()} life review summary.
 
@@ -224,11 +225,13 @@ Please generate a thoughtful, personal summary that:
 3. Provides gentle insights or reflections
 4. Uses a warm, encouraging tone
 
-Respond in JSON format:
+IMPORTANT: Write all content values in ${language}. Keep JSON keys in English exactly as shown.
+
+Respond in JSON format (keys must be exactly "title", "content", "highlights"):
 {
-  "title": "A short, engaging title for this ${periodLabel.toLowerCase()} review (e.g., 'A Week of Deep Work' or 'Building and Learning')",
-  "content": "A 2-3 paragraph summary in markdown format. Be specific about projects, topics, and activities.",
-  "highlights": ["3-5 key highlights or achievements from this period"]
+  "title": "A short, engaging title in ${language}",
+  "content": "A 2-3 paragraph summary in markdown format, written in ${language}. Be specific about projects, topics, and activities.",
+  "highlights": ["3-5 key highlights in ${language}"]
 }`;
 
   const llm = getLLM();
