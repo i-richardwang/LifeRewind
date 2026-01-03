@@ -1,8 +1,7 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { checkbox, input } from '@inquirer/prompts';
 import { printDim } from './output.js';
-import { expandPath } from '../../utils/path.js';
+import { directoryBrowser } from './directory-browser.js';
 
 /**
  * Mask an API key for display (show first 8 and last 4 chars)
@@ -55,59 +54,41 @@ export const FILESYSTEM_PATH_PRESETS = [
   { path: `${home}/Downloads`, defaultChecked: true },
 ];
 
-const ADD_CUSTOM_PATH = '__add_custom__';
-
 interface PathPreset {
   path: string;
   defaultChecked: boolean;
 }
 
 /**
- * Interactive path selector with presets and custom path support
+ * Interactive directory browser for path selection
+ * Uses ↑↓ to navigate, Space to select, →/Enter to expand, ← to collapse
  */
 export async function selectPaths(
   message: string,
   presets: PathPreset[],
   currentPaths?: string[]
 ): Promise<string[]> {
+  // Filter to existing paths
   const existingPresets = presets.filter((p) => existsSync(p.path));
 
-  const choices = existingPresets.map((preset) => {
-    const isChecked = currentPaths ? currentPaths.includes(preset.path) : preset.defaultChecked;
-    return {
-      name: preset.path.replace(home, '~'),
-      value: preset.path,
-      checked: isChecked,
-    };
-  });
+  // Determine default selected paths
+  const defaultSelected = existingPresets
+    .filter((preset) => (currentPaths ? currentPaths.includes(preset.path) : preset.defaultChecked))
+    .map((p) => p.path);
 
-  choices.push({
-    name: '── Add custom path...',
-    value: ADD_CUSTOM_PATH,
-    checked: false,
-  });
+  // Use all preset paths as root paths for browsing
+  const rootPaths = existingPresets.map((p) => p.path);
 
-  const selected = await checkbox({
-    message,
-    choices,
-    loop: false,
-  });
-
-  if (selected.includes(ADD_CUSTOM_PATH)) {
-    const filtered = selected.filter((p) => p !== ADD_CUSTOM_PATH);
-    const customPath = await input({
-      message: 'Enter custom path:',
-      validate: (value) => {
-        if (!value.trim()) return 'Path cannot be empty';
-        const expanded = expandPath(value.trim());
-        if (!existsSync(expanded)) {
-          return `Path does not exist: ${value}`;
-        }
-        return true;
-      },
-    });
-    return [...filtered, expandPath(customPath.trim())];
+  if (rootPaths.length === 0) {
+    printDim('  No valid paths to browse');
+    return [];
   }
+
+  const selected = await directoryBrowser({
+    message,
+    rootPaths,
+    defaultSelected,
+  });
 
   return selected;
 }

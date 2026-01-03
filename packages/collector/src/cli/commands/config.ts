@@ -9,7 +9,6 @@ import { printError, printSuccess, printInfo, printDim } from '../utils/output.j
 import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients } from '../detect/index.js';
 import {
   maskApiKey,
-  showMaskedKey,
   SCHEDULE_CHOICES,
   GIT_PATH_PRESETS,
   FILESYSTEM_PATH_PRESETS,

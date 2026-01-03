@@ -105,9 +105,15 @@ importers:
 
   packages/collector:
     dependencies:
+      '@inquirer/core':
+        specifier: ^11.1.0
+        version: 11.1.0(@types/node@20.19.25)
       '@inquirer/prompts':
         specifier: ^8.1.0
         version: 8.1.0(@types/node@20.19.25)
+      '@inquirer/type':
+        specifier: ^4.0.2
+        version: 4.0.2(@types/node@20.19.25)
       better-sqlite3:
         specifier: ^12.5.0
         version: 12.5.0

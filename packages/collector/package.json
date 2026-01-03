@@ -1,6 +1,6 @@
 {
   "name": "liferewind",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "AI-powered personal life review tool - collect your digital footprints from git, browser history, documents, and AI chatbots",
   "keywords": [
     "cli",
@@ -56,7 +56,9 @@
     "pm2:logs": "pm2 logs liferewind-collector"
   },
   "dependencies": {
+    "@inquirer/core": "^11.1.0",
     "@inquirer/prompts": "^8.1.0",
+    "@inquirer/type": "^4.0.2",
     "better-sqlite3": "^12.5.0",
     "commander": "^14.0.2",
     "minimatch": "^10.1.1",
