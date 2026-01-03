@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { insertItems } from '@/db/queries/items';
+import { insertItems, upsertFilesystemItems } from '@/db/queries/items';
 import { createCollectionLog } from '@/db/queries/logs';
 import type { NewCollectedItem, SourceType } from '@/db/schema';
 
@@ -97,10 +97,19 @@ export async function ingestItems(params: IngestParams): Promise<IngestResult> {
 
   let itemsInserted = 0;
   if (transformedItems.length > 0) {
-    // Browser and chatbot use upsert (update on conflict)
-    // Git and filesystem use ignore (skip on conflict)
-    const onConflict = sourceType === 'browser' || sourceType === 'chatbot' ? 'update' : 'ignore';
-    const results = await insertItems(transformedItems, onConflict);
+    let results;
+
+    if (sourceType === 'filesystem') {
+      // Filesystem uses special upsert with conditional dailyModifyCount increment
+      results = await upsertFilesystemItems(transformedItems);
+    } else if (sourceType === 'browser' || sourceType === 'chatbot') {
+      // Browser and chatbot use standard upsert (update on conflict)
+      results = await insertItems(transformedItems, 'update');
+    } else {
+      // Git uses ignore (skip on conflict)
+      results = await insertItems(transformedItems, 'ignore');
+    }
+
     itemsInserted = results.length;
   }
 
@@ -179,10 +188,12 @@ function transformBrowserItem(item: CollectedItemPayload, collectedAt: Date): Ne
 function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
   const data = item.data as FilesystemPayload;
   const modifiedTimestamp = new Date(data.modifiedAt);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const date = modifiedTimestamp.toLocaleDateString('en-CA', { timeZone: timezone });
 
   return {
     sourceType: 'filesystem',
-    sourceKey: sha256(`${data.filePath}|${modifiedTimestamp.toISOString()}`),
+    sourceKey: sha256(`${data.filePath}|${date}`),
     timestamp: modifiedTimestamp,
     title: data.fileName,
     url: `file://${data.filePath}`,
@@ -194,6 +205,10 @@ function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date):
       mimeType: data.mimeType,
       contentPreview: data.contentPreview,
       parentDirectory: data.parentDirectory,
+      date,
+      dailyModifyCount: 1,
+      firstModifiedTime: data.modifiedAt,
+      lastModifiedTime: data.modifiedAt,
     },
     collectedAt,
   };

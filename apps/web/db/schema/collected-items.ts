@@ -43,6 +43,10 @@ export interface FilesystemData {
   mimeType?: string;
   contentPreview?: string;
   parentDirectory: string;
+  date: string;
+  dailyModifyCount: number;
+  firstModifiedTime: string;
+  lastModifiedTime: string;
 }
 
 export interface ChatbotMessage {

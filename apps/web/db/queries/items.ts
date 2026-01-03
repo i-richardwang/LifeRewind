@@ -180,3 +180,53 @@ export async function insertItems(
     })
     .returning();
 }
+
+/**
+ * Upsert filesystem items with conditional dailyModifyCount increment
+ * Only increments count when lastModifiedTime is newer
+ */
+export async function upsertFilesystemItems(items: NewCollectedItem[]) {
+  if (items.length === 0) return [];
+
+  // Use raw SQL for conditional update logic
+  return db
+    .insert(collectedItems)
+    .values(items)
+    .onConflictDoUpdate({
+      target: [collectedItems.sourceType, collectedItems.sourceKey],
+      set: {
+        // Update timestamp to the newer one
+        timestamp: sql`
+          CASE
+            WHEN excluded.timestamp > ${collectedItems.timestamp}
+            THEN excluded.timestamp
+            ELSE ${collectedItems.timestamp}
+          END
+        `,
+        title: sql`excluded.title`,
+        url: sql`excluded.url`,
+        // Conditionally update data with incremented count
+        data: sql`
+          CASE
+            WHEN excluded.timestamp > ${collectedItems.timestamp}
+            THEN jsonb_set(
+              jsonb_set(
+                jsonb_set(
+                  excluded.data,
+                  '{dailyModifyCount}',
+                  to_jsonb(COALESCE((${collectedItems.data}->>'dailyModifyCount')::int, 1) + 1)
+                ),
+                '{firstModifiedTime}',
+                COALESCE(${collectedItems.data}->'firstModifiedTime', excluded.data->'firstModifiedTime')
+              ),
+              '{lastModifiedTime}',
+              excluded.data->'lastModifiedTime'
+            )
+            ELSE ${collectedItems.data}
+          END
+        `,
+        collectedAt: sql`excluded.collected_at`,
+      },
+    })
+    .returning();
+}
