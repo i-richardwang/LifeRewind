@@ -22,6 +22,9 @@ liferewind start
 
 # Manual collection
 liferewind collect
+
+# First-time collection with extended range (e.g., 90 days)
+liferewind collect --initial
 ```
 
 ## Data Sources
@@ -43,7 +46,7 @@ Config file lookup order:
 3. `~/.liferewind-collector.json`
 4. `./collector.config.json`
 
-Example configuration (see `collector.config.example.json`):
+Example configuration:
 
 ```json
 {
@@ -57,7 +60,8 @@ Example configuration (see `collector.config.example.json`):
       "schedule": "daily",
       "options": {
         "scanPaths": ["~/Documents", "~/Projects"],
-        "sinceDays": 30
+        "sinceDays": 2,
+        "initialSinceDays": 90
       }
     },
     "browser": {
@@ -66,7 +70,8 @@ Example configuration (see `collector.config.example.json`):
       "options": {
         "browsers": ["chrome", "safari", "arc"],
         "excludeDomains": ["localhost", "127.0.0.1"],
-        "sinceDays": 7
+        "sinceDays": 2,
+        "initialSinceDays": 30
       }
     },
     "filesystem": {
@@ -76,7 +81,8 @@ Example configuration (see `collector.config.example.json`):
         "watchPaths": ["~/Documents"],
         "excludePatterns": ["**/node_modules/**", "**/.git/**"],
         "fileTypes": [".md", ".txt", ".docx", ".pdf"],
-        "sinceDays": 7,
+        "sinceDays": 2,
+        "initialSinceDays": 30,
         "includeContent": true
       }
     },
@@ -85,7 +91,8 @@ Example configuration (see `collector.config.example.json`):
       "schedule": "daily",
       "options": {
         "clients": ["chatwise"],
-        "sinceDays": 30,
+        "sinceDays": 2,
+        "initialSinceDays": 90,
         "includeContent": true
       }
     }
@@ -95,6 +102,10 @@ Example configuration (see `collector.config.example.json`):
   }
 }
 ```
+
+**Configuration options:**
+- `sinceDays`: Time range for daily scheduled collection (default: 2 days)
+- `initialSinceDays`: Time range for first-time collection with `--initial` flag (default: 30-90 days)
 
 **Note:** Git repositories are automatically excluded from filesystem scanning.
 
@@ -119,6 +130,7 @@ liferewind start             # Start collector service
 liferewind start --run-once  # Collect once and exit
 liferewind collect           # Manual trigger (all sources)
 liferewind collect git       # Manual trigger (specific source)
+liferewind collect --initial # First-time collection (extended range)
 
 # Diagnostics
 liferewind status            # Show service status
