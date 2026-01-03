@@ -2,9 +2,13 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
   "globalEnv": [
+    "NODE_ENV",
     "DATABASE_URL",
     "LIFEREWIND_API_URL",
     "LIFEREWIND_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_API_KEY",
+    "LLM_MODEL",
     "COLLECTOR_CONFIG_PATH",
     "COLLECTOR_RUN_ON_START",
     "EDITOR",

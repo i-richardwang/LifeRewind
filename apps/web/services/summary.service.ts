@@ -1,0 +1,326 @@
+import { generateText } from 'ai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
+import { AppError } from '@/lib/api/errors';
+import { findItems } from '@/db/queries/items';
+import { findSummaries, createSummary } from '@/db/queries/summaries';
+import type {
+  CollectedItem,
+  GitData,
+  BrowserData,
+  FilesystemData,
+  ChatbotData,
+  SummaryPeriod,
+  Summary,
+} from '@/db/schema';
+
+// Lazy-loaded LLM provider
+function getLLM() {
+  return createOpenAICompatible({
+    name: 'liferewind-llm',
+    baseURL: process.env.LLM_BASE_URL || 'https://api.openai.com/v1',
+    apiKey: process.env.LLM_API_KEY || '',
+  });
+}
+
+export interface ListSummariesParams {
+  period?: SummaryPeriod;
+  limit?: number;
+}
+
+export interface GenerateSummaryParams {
+  period: SummaryPeriod;
+  date: Date;
+}
+
+/**
+ * List existing summaries
+ */
+export async function listSummaries(params: ListSummariesParams = {}): Promise<Summary[]> {
+  return findSummaries({
+    period: params.period,
+    limit: Math.min(params.limit ?? 10, 50),
+  });
+}
+
+/**
+ * Generate a new AI summary for a given period
+ */
+export async function generateSummary(params: GenerateSummaryParams): Promise<Summary> {
+  const { period, date } = params;
+  const { periodStart, periodEnd } = getPeriodRange(period, date);
+
+  // Fetch all items in the period
+  const items = await findItems({
+    from: periodStart,
+    to: periodEnd,
+    limit: 5000,
+  });
+
+  if (items.length === 0) {
+    throw AppError.badRequest('No data found for the specified period');
+  }
+
+  // Aggregate data
+  const aggregatedData = aggregateData(items);
+
+  // Generate AI summary
+  const { title, content, highlights } = await generateAIContent(
+    period,
+    periodStart,
+    periodEnd,
+    aggregatedData
+  );
+
+  // Save to database
+  return createSummary({
+    period,
+    periodStart,
+    periodEnd,
+    title,
+    content,
+    highlights,
+    dataStats: {
+      gitCommits: aggregatedData.git.commits.length,
+      browserVisits: aggregatedData.browser.totalVisits,
+      filesChanged: aggregatedData.filesystem.files.length,
+      chatSessions: aggregatedData.chatbot.sessions.length,
+    },
+  });
+}
+
+// Helper functions
+
+function getPeriodRange(period: SummaryPeriod, date: Date) {
+  if (period === 'week') {
+    return {
+      periodStart: startOfWeek(date, { weekStartsOn: 1 }),
+      periodEnd: endOfWeek(date, { weekStartsOn: 1 }),
+    };
+  }
+  return {
+    periodStart: startOfMonth(date),
+    periodEnd: endOfMonth(date),
+  };
+}
+
+interface AggregatedData {
+  git: {
+    commits: Array<{ repo: string; message: string; date: string; stats: GitData['stats'] }>;
+    repoStats: Record<string, { commits: number; insertions: number; deletions: number }>;
+  };
+  browser: {
+    totalVisits: number;
+    topDomains: Array<{ domain: string; visits: number }>;
+  };
+  filesystem: {
+    files: Array<{ path: string; type: string }>;
+    byExtension: Record<string, number>;
+  };
+  chatbot: {
+    sessions: Array<{ title: string; messageCount: number }>;
+    totalMessages: number;
+  };
+}
+
+function aggregateData(items: CollectedItem[]): AggregatedData {
+  const result: AggregatedData = {
+    git: { commits: [], repoStats: {} },
+    browser: { totalVisits: 0, topDomains: [] },
+    filesystem: { files: [], byExtension: {} },
+    chatbot: { sessions: [], totalMessages: 0 },
+  };
+
+  const domainCounts: Record<string, number> = {};
+
+  for (const item of items) {
+    switch (item.sourceType) {
+      case 'git': {
+        const data = item.data as GitData;
+        result.git.commits.push({
+          repo: data.repository,
+          message: item.title || data.hash,
+          date: item.timestamp.toISOString(),
+          stats: data.stats,
+        });
+
+        if (!result.git.repoStats[data.repository]) {
+          result.git.repoStats[data.repository] = { commits: 0, insertions: 0, deletions: 0 };
+        }
+        const repoStat = result.git.repoStats[data.repository]!;
+        repoStat.commits++;
+        repoStat.insertions += data.stats.insertions;
+        repoStat.deletions += data.stats.deletions;
+        break;
+      }
+
+      case 'browser': {
+        const data = item.data as BrowserData;
+        result.browser.totalVisits += data.dailyVisitCount;
+
+        try {
+          const url = new URL(item.url || '');
+          domainCounts[url.hostname] = (domainCounts[url.hostname] || 0) + data.dailyVisitCount;
+        } catch {
+          // Invalid URL, skip
+        }
+        break;
+      }
+
+      case 'filesystem': {
+        const data = item.data as FilesystemData;
+        result.filesystem.files.push({
+          path: data.filePath,
+          type: data.eventType,
+        });
+
+        const ext = data.extension || 'unknown';
+        result.filesystem.byExtension[ext] = (result.filesystem.byExtension[ext] || 0) + 1;
+        break;
+      }
+
+      case 'chatbot': {
+        const data = item.data as ChatbotData;
+        result.chatbot.sessions.push({
+          title: data.sessionTitle,
+          messageCount: data.messages.length,
+        });
+        result.chatbot.totalMessages += data.messages.length;
+        break;
+      }
+    }
+  }
+
+  // Sort domains by visit count
+  result.browser.topDomains = Object.entries(domainCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([domain, visits]) => ({ domain, visits }));
+
+  return result;
+}
+
+async function generateAIContent(
+  period: SummaryPeriod,
+  periodStart: Date,
+  periodEnd: Date,
+  data: AggregatedData
+): Promise<{ title: string; content: string; highlights: string[] }> {
+  const periodLabel = period === 'week' ? 'Weekly' : 'Monthly';
+  const dateRange = `${format(periodStart, 'MMM d')} - ${format(periodEnd, 'MMM d, yyyy')}`;
+  const context = buildPromptContext(data);
+
+  const prompt = `You are analyzing a user's digital footprints to create a ${periodLabel.toLowerCase()} life review summary.
+
+Period: ${dateRange}
+
+Here is the aggregated data from this period:
+
+${context}
+
+Please generate a thoughtful, personal summary that:
+1. Highlights the main activities and focus areas
+2. Identifies patterns or themes
+3. Provides gentle insights or reflections
+4. Uses a warm, encouraging tone
+
+Respond in JSON format:
+{
+  "title": "A short, engaging title for this ${periodLabel.toLowerCase()} review (e.g., 'A Week of Deep Work' or 'Building and Learning')",
+  "content": "A 2-3 paragraph summary in markdown format. Be specific about projects, topics, and activities.",
+  "highlights": ["3-5 key highlights or achievements from this period"]
+}`;
+
+  const llm = getLLM();
+  const { text } = await generateText({
+    model: llm(process.env.LLM_MODEL || 'gpt-4o'),
+    prompt,
+    maxOutputTokens: 1000,
+  });
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in response');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      title: parsed.title || `${periodLabel} Review`,
+      content: parsed.content || 'Summary generation failed.',
+      highlights: parsed.highlights || [],
+    };
+  } catch {
+    return {
+      title: `${periodLabel} Review (${dateRange})`,
+      content: text,
+      highlights: [],
+    };
+  }
+}
+
+function buildPromptContext(data: AggregatedData): string {
+  const sections: string[] = [];
+
+  if (data.git.commits.length > 0) {
+    const repoSummary = Object.entries(data.git.repoStats)
+      .map(([repo, stats]) => `- ${repo}: ${stats.commits} commits (+${stats.insertions}/-${stats.deletions})`)
+      .join('\n');
+
+    const recentCommits = data.git.commits
+      .slice(0, 10)
+      .map((c) => `- ${c.repo}: "${c.message}"`)
+      .join('\n');
+
+    sections.push(`## Git Activity
+Total commits: ${data.git.commits.length}
+
+Repositories:
+${repoSummary}
+
+Recent commits:
+${recentCommits}`);
+  }
+
+  if (data.browser.totalVisits > 0) {
+    const topDomains = data.browser.topDomains
+      .map((d) => `- ${d.domain}: ${d.visits} visits`)
+      .join('\n');
+
+    sections.push(`## Web Browsing
+Total page visits: ${data.browser.totalVisits}
+
+Top visited sites:
+${topDomains}`);
+  }
+
+  if (data.filesystem.files.length > 0) {
+    const byExt = Object.entries(data.filesystem.byExtension)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([ext, count]) => `- .${ext}: ${count} files`)
+      .join('\n');
+
+    sections.push(`## File Activity
+Files modified: ${data.filesystem.files.length}
+
+By file type:
+${byExt}`);
+  }
+
+  if (data.chatbot.sessions.length > 0) {
+    const chatTopics = data.chatbot.sessions
+      .slice(0, 5)
+      .map((s) => `- "${s.title}" (${s.messageCount} messages)`)
+      .join('\n');
+
+    sections.push(`## AI Chat Sessions
+Total sessions: ${data.chatbot.sessions.length}
+Total messages: ${data.chatbot.totalMessages}
+
+Recent topics:
+${chatTopics}`);
+  }
+
+  return sections.join('\n\n');
+}
