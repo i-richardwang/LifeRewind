@@ -26,6 +26,33 @@ const TEXT_EXTENSIONS = new Set([
 /** Maximum characters to include in content preview */
 const CONTENT_PREVIEW_LENGTH = 500;
 
+/** Check if a filename is a temporary or hidden file that should be skipped */
+function isTemporaryOrHiddenFile(fileName: string): boolean {
+  // Hidden files (start with .)
+  if (fileName.startsWith('.')) return true;
+
+  // Microsoft Office temporary files (~$xxx.docx, ~WRL0001.tmp)
+  if (fileName.startsWith('~$') || fileName.startsWith('~WRL')) return true;
+
+  // General temporary files starting with ~
+  if (fileName.startsWith('~') && !fileName.endsWith('.md')) return true;
+
+  // macOS temporary files (.DS_Store already caught by hidden check)
+  // Windows temporary files
+  if (fileName.endsWith('.tmp') || fileName.endsWith('.temp')) return true;
+
+  // Backup files
+  if (fileName.endsWith('~') || fileName.endsWith('.bak')) return true;
+
+  // Lock files
+  if (fileName.endsWith('.lock') || fileName.endsWith('.lck')) return true;
+
+  // Swap files (vim, etc.)
+  if (fileName.endsWith('.swp') || fileName.endsWith('.swo')) return true;
+
+  return false;
+}
+
 /** MIME type mapping for common document formats */
 const MIME_MAP: Record<string, string> = {
   // Text & Markdown
@@ -210,6 +237,11 @@ export class FilesystemScanner {
 
     for (const entry of entries) {
       const fullPath = resolve(dirPath, entry.name);
+
+      // Skip hidden and temporary files/directories
+      if (isTemporaryOrHiddenFile(entry.name)) {
+        continue;
+      }
 
       // Check exclusion patterns
       if (this.isExcluded(fullPath)) {
