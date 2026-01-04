@@ -106,16 +106,24 @@ function getPeriodRange(period: SummaryPeriod, date: Date) {
 
 interface AggregatedData {
   git: {
-    commits: Array<{ repo: string; message: string; date: string; stats: GitData['stats'] }>;
+    commits: Array<{
+      repo: string;
+      message: string;
+      date: string;
+      files: string[];
+      stats: { insertions: number; deletions: number };
+    }>;
     repoStats: Record<string, { commits: number; insertions: number; deletions: number }>;
   };
   browser: {
     totalVisits: number;
     topDomains: Array<{ domain: string; visits: number }>;
+    topPages: Array<{ title: string; url: string; visits: number }>;
   };
   filesystem: {
-    files: Array<{ path: string; type: string }>;
+    files: Array<{ name: string; path: string; type: string }>;
     byExtension: Record<string, number>;
+    byDirectory: Record<string, number>;
   };
   chatbot: {
     sessions: Array<{ title: string; messageCount: number }>;
@@ -126,12 +134,13 @@ interface AggregatedData {
 function aggregateData(items: CollectedItem[]): AggregatedData {
   const result: AggregatedData = {
     git: { commits: [], repoStats: {} },
-    browser: { totalVisits: 0, topDomains: [] },
-    filesystem: { files: [], byExtension: {} },
+    browser: { totalVisits: 0, topDomains: [], topPages: [] },
+    filesystem: { files: [], byExtension: {}, byDirectory: {} },
     chatbot: { sessions: [], totalMessages: 0 },
   };
 
   const domainCounts: Record<string, number> = {};
+  const pageCounts: Record<string, { title: string; url: string; visits: number }> = {};
 
   for (const item of items) {
     switch (item.sourceType) {
@@ -141,7 +150,8 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
           repo: data.repository,
           message: item.title || data.hash,
           date: item.timestamp.toISOString(),
-          stats: data.stats,
+          files: data.stats.files || [],
+          stats: { insertions: data.stats.insertions, deletions: data.stats.deletions },
         });
 
         if (!result.git.repoStats[data.repository]) {
@@ -161,6 +171,15 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
         try {
           const url = new URL(item.url || '');
           domainCounts[url.hostname] = (domainCounts[url.hostname] || 0) + data.dailyVisitCount;
+
+          // Track individual pages with titles
+          const pageKey = item.url || '';
+          if (pageKey && item.title) {
+            if (!pageCounts[pageKey]) {
+              pageCounts[pageKey] = { title: item.title, url: pageKey, visits: 0 };
+            }
+            pageCounts[pageKey].visits += data.dailyVisitCount;
+          }
         } catch {
           // Invalid URL, skip
         }
@@ -169,13 +188,19 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
 
       case 'filesystem': {
         const data = item.data as FilesystemData;
+        const fileName = data.filePath.split('/').pop() || data.filePath;
         result.filesystem.files.push({
+          name: fileName,
           path: data.filePath,
           type: data.eventType,
         });
 
         const ext = data.extension || 'unknown';
         result.filesystem.byExtension[ext] = (result.filesystem.byExtension[ext] || 0) + 1;
+
+        // Track by parent directory
+        const dir = data.parentDirectory || data.filePath.split('/').slice(0, -1).join('/') || '/';
+        result.filesystem.byDirectory[dir] = (result.filesystem.byDirectory[dir] || 0) + 1;
         break;
       }
 
@@ -197,6 +222,11 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
     .slice(0, 10)
     .map(([domain, visits]) => ({ domain, visits }));
 
+  // Sort pages by visit count
+  result.browser.topPages = Object.values(pageCounts)
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, 15);
+
   return result;
 }
 
@@ -215,13 +245,13 @@ async function generateAIContent(
 
 Period: ${dateRange}
 
-Here is the aggregated data from this period:
-
+<digital-footprints>
 ${context}
+</digital-footprints>
 
-Please generate a thoughtful, personal summary that:
+Based on the data above, generate a thoughtful, personal summary that:
 1. Highlights the main activities and focus areas
-2. Identifies patterns or themes
+2. Identifies patterns or themes in work and learning
 3. Provides gentle insights or reflections
 4. Uses a warm, encouraging tone
 
@@ -270,59 +300,78 @@ function buildPromptContext(data: AggregatedData): string {
       .map(([repo, stats]) => `- ${repo}: ${stats.commits} commits (+${stats.insertions}/-${stats.deletions})`)
       .join('\n');
 
-    const recentCommits = data.git.commits
-      .slice(0, 10)
-      .map((c) => `- ${c.repo}: "${c.message}"`)
+    const commitDetails = data.git.commits
+      .map((c) => {
+        let filesStr = '';
+        if (c.files.length > 0) {
+          const shownFiles = c.files.slice(0, 5);
+          const remaining = c.files.length - 5;
+          filesStr = ` [files: ${shownFiles.join(', ')}${remaining > 0 ? `, +${remaining} more` : ''}]`;
+        }
+        return `- [${c.repo}] ${c.message} (+${c.stats.insertions}/-${c.stats.deletions})${filesStr}`;
+      })
       .join('\n');
 
-    sections.push(`## Git Activity
+    sections.push(`<git-activity>
 Total commits: ${data.git.commits.length}
 
 Repositories:
 ${repoSummary}
 
-Recent commits:
-${recentCommits}`);
+Commits:
+${commitDetails}
+</git-activity>`);
   }
 
   if (data.browser.totalVisits > 0) {
-    const topDomains = data.browser.topDomains
-      .map((d) => `- ${d.domain}: ${d.visits} visits`)
+    const topPages = data.browser.topPages
+      .slice(0, 50)
+      .map((p) => `- "${p.title}" (${p.visits} visits)`)
       .join('\n');
 
-    sections.push(`## Web Browsing
+    sections.push(`<web-browsing>
 Total page visits: ${data.browser.totalVisits}
 
-Top visited sites:
-${topDomains}`);
+Top visited pages:
+${topPages}
+</web-browsing>`);
   }
 
   if (data.filesystem.files.length > 0) {
-    const byExt = Object.entries(data.filesystem.byExtension)
+    const byDir = Object.entries(data.filesystem.byDirectory)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([ext, count]) => `- .${ext}: ${count} files`)
+      .slice(0, 10)
+      .map(([dir, count]) => `- ${dir}: ${count} files`)
       .join('\n');
 
-    sections.push(`## File Activity
+    const fileList = data.filesystem.files
+      .slice(0, 50)
+      .map((f) => `- [${f.type}] ${f.name}`)
+      .join('\n');
+
+    sections.push(`<file-activity>
 Files modified: ${data.filesystem.files.length}
 
-By file type:
-${byExt}`);
+By directory:
+${byDir}
+
+Modified files:
+${fileList}
+</file-activity>`);
   }
 
   if (data.chatbot.sessions.length > 0) {
-    const chatTopics = data.chatbot.sessions
-      .slice(0, 5)
+    const allSessions = data.chatbot.sessions
       .map((s) => `- "${s.title}" (${s.messageCount} messages)`)
       .join('\n');
 
-    sections.push(`## AI Chat Sessions
+    sections.push(`<ai-chat-sessions>
 Total sessions: ${data.chatbot.sessions.length}
 Total messages: ${data.chatbot.totalMessages}
 
-Recent topics:
-${chatTopics}`);
+All chat sessions:
+${allSessions}
+</ai-chat-sessions>`);
   }
 
   return sections.join('\n\n');

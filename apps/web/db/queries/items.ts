@@ -1,4 +1,4 @@
-import { and, desc, gte, lte, inArray, sql } from 'drizzle-orm';
+import { and, desc, gte, lte, inArray, sql, asc } from 'drizzle-orm';
 import { db } from '..';
 import {
   collectedItems,
@@ -229,4 +229,53 @@ export async function upsertFilesystemItems(items: NewCollectedItem[]) {
       },
     })
     .returning();
+}
+
+/**
+ * Get the earliest item timestamp
+ */
+export async function getEarliestItemDate(): Promise<Date | null> {
+  const [result] = await db
+    .select({ timestamp: collectedItems.timestamp })
+    .from(collectedItems)
+    .orderBy(asc(collectedItems.timestamp))
+    .limit(1);
+
+  return result?.timestamp ?? null;
+}
+
+/**
+ * Check if there is any data in a date range
+ */
+export async function hasDataInRange(from: Date, to: Date): Promise<boolean> {
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(collectedItems)
+    .where(and(gte(collectedItems.timestamp, from), lte(collectedItems.timestamp, to)))
+    .limit(1);
+
+  return (result?.count ?? 0) > 0;
+}
+
+/**
+ * Get data availability for multiple date ranges
+ */
+export async function getDataAvailabilityForRanges(
+  ranges: Array<{ from: Date; to: Date }>
+): Promise<Map<string, boolean>> {
+  if (ranges.length === 0) return new Map();
+
+  // Build a query that checks each range
+  const results = await Promise.all(
+    ranges.map(async ({ from, to }) => {
+      const [result] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(collectedItems)
+        .where(and(gte(collectedItems.timestamp, from), lte(collectedItems.timestamp, to)))
+        .limit(1);
+      return { key: `${from.toISOString()}-${to.toISOString()}`, hasData: (result?.count ?? 0) > 0 };
+    })
+  );
+
+  return new Map(results.map((r) => [r.key, r.hasData]));
 }
