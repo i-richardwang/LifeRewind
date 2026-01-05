@@ -1,4 +1,4 @@
-import { Skeleton, Card, CardHeader, CardDescription, CardFooter } from '@workspace/ui';
+import { Card, CardContent, Skeleton } from '@workspace/ui';
 import { Header } from '@/components/layout';
 
 export default function Loading() {
@@ -11,48 +11,37 @@ export default function Loading() {
           <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
             {/* Year/Month picker skeleton */}
             <div className="px-4 lg:px-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-2">
-                  <Skeleton className="size-8" />
-                  <Skeleton className="h-7 w-16" />
-                  <Skeleton className="size-8" />
-                </div>
-                <div className="flex flex-wrap justify-center gap-1">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <Skeleton key={i} className="h-8 w-12" />
-                  ))}
-                </div>
+              <div className="flex items-center justify-center gap-1">
+                <Skeleton className="size-8" />
+                <Skeleton className="mx-2 h-5 w-10" />
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-10" />
+                ))}
+                <Skeleton className="size-8" />
               </div>
             </div>
 
             {/* Period filter skeleton */}
             <div className="flex items-center justify-between px-4 lg:px-6">
               <Skeleton className="h-7 w-32" />
-              <Skeleton className="h-9 w-32" />
+              <Skeleton className="h-9 w-40" />
             </div>
 
             {/* Summary cards skeleton */}
             <div className="space-y-4 px-4 lg:px-6">
               {[1, 2, 3].map((i) => (
-                <Card key={i} className="@container/card">
-                  <CardHeader>
-                    <CardDescription>
-                      <Skeleton className="h-4 w-40" />
-                    </CardDescription>
-                    <Skeleton className="h-6 w-64" />
-                  </CardHeader>
-                  <div className="space-y-2 px-6 pb-4">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </div>
-                  <CardFooter className="text-sm text-muted-foreground">
-                    <div className="flex gap-4">
-                      <Skeleton className="h-4 w-20" />
-                      <Skeleton className="h-4 w-20" />
-                      <Skeleton className="h-4 w-20" />
+                <Card key={i}>
+                  <CardContent className="p-6">
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-6 w-48" />
+                      <div className="space-y-2 pt-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-3/4" />
+                      </div>
                     </div>
-                  </CardFooter>
+                  </CardContent>
                 </Card>
               ))}
             </div>

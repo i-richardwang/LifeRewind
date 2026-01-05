@@ -40,7 +40,7 @@ export function YearMonthPicker({
   const currentYearNow = now.getFullYear();
   const currentMonthNow = now.getMonth() + 1;
 
-  // Calculate year boundaries
+  // Calculate boundaries
   const earliestYear = earliestDataDate?.getFullYear() ?? currentYearNow;
   const earliestMonth = earliestDataDate ? earliestDataDate.getMonth() + 1 : 1;
 
@@ -51,84 +51,102 @@ export function YearMonthPicker({
     router.push(`/?${params.toString()}`);
   };
 
-  const handlePrevYear = () => {
-    updateParams(currentYear - 1, currentMonth);
+  // Navigate to previous month (cross-year)
+  const handlePrevMonth = () => {
+    if (currentMonth === 1) {
+      updateParams(currentYear - 1, 12);
+    } else {
+      updateParams(currentYear, currentMonth - 1);
+    }
   };
 
-  const handleNextYear = () => {
-    updateParams(currentYear + 1, currentMonth);
+  // Navigate to next month (cross-year)
+  const handleNextMonth = () => {
+    if (currentMonth === 12) {
+      updateParams(currentYear + 1, 1);
+    } else {
+      updateParams(currentYear, currentMonth + 1);
+    }
   };
 
   const handleMonthClick = (month: number) => {
     updateParams(currentYear, month);
   };
 
-  const isCurrentYear = currentYear === currentYearNow;
-  const isEarliestYear = currentYear === earliestYear;
-  const canGoPrev = currentYear > earliestYear;
-  const canGoNext = currentYear < currentYearNow;
+  const isCurrentYearMonth =
+    currentYear === currentYearNow && currentMonth === currentMonthNow;
+  const isEarliestYearMonth =
+    currentYear === earliestYear && currentMonth === earliestMonth;
+
+  // Can go prev if not at earliest date
+  const canGoPrev = !isEarliestYearMonth;
+  // Can go next if not at current date
+  const canGoNext = !isCurrentYearMonth;
 
   return (
-    <div className="space-y-3">
-      {/* Year selector */}
-      <div className="flex items-center justify-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={handlePrevYear}
-          disabled={!canGoPrev}
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
-        <span className="min-w-[4rem] text-center text-lg font-semibold">
-          {currentYear}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={handleNextYear}
-          disabled={!canGoNext}
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      </div>
+    <div className="flex items-center justify-center gap-1">
+      {/* Prev month button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        onClick={handlePrevMonth}
+        disabled={!canGoPrev}
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
 
-      {/* Month grid */}
-      <div className="flex flex-wrap justify-center gap-1">
-        {MONTHS.map((monthName, index) => {
-          const month = index + 1;
-          const isSelected = month === currentMonth;
-          const hasData = monthsWithData.includes(month);
+      {/* Year label */}
+      <span className="px-2 text-sm font-semibold tabular-nums">
+        {currentYear}
+      </span>
 
-          // Check if month is in the future
-          const isFuture = isCurrentYear && month > currentMonthNow;
+      {/* Month buttons */}
+      {MONTHS.map((monthName, index) => {
+        const month = index + 1;
+        const isSelected = month === currentMonth;
+        const hasData = monthsWithData.includes(month);
 
-          // Check if month is before earliest data
-          const isBeforeData = isEarliestYear && month < earliestMonth;
+        // Check if month is in the future (for current year)
+        const isFuture = currentYear === currentYearNow && month > currentMonthNow;
 
-          const isDisabled = isFuture || isBeforeData;
+        // Check if month is before earliest data (for earliest year)
+        const isBeforeData = currentYear === earliestYear && month < earliestMonth;
 
-          return (
-            <Button
-              key={month}
-              variant={isSelected ? 'default' : 'ghost'}
-              size="sm"
-              className={cn(
-                'h-8 w-12 text-xs',
-                !isSelected && hasData && 'font-medium',
-                !isSelected && !hasData && 'text-muted-foreground',
-                isDisabled && 'pointer-events-none opacity-40'
-              )}
-              onClick={() => handleMonthClick(month)}
-              disabled={isDisabled}
-            >
-              {monthName}
-            </Button>
-          );
-        })}
-      </div>
+        // Check if year is before earliest or after current
+        const isYearOutOfRange = currentYear < earliestYear || currentYear > currentYearNow;
+
+        const isDisabled = isFuture || isBeforeData || isYearOutOfRange;
+
+        return (
+          <Button
+            key={month}
+            variant={isSelected ? 'default' : 'ghost'}
+            size="sm"
+            className={cn(
+              'h-8 w-10 text-xs',
+              !isSelected && hasData && 'font-medium',
+              !isSelected && !hasData && 'text-muted-foreground',
+              isDisabled && 'pointer-events-none opacity-40'
+            )}
+            onClick={() => handleMonthClick(month)}
+            disabled={isDisabled}
+          >
+            {monthName}
+          </Button>
+        );
+      })}
+
+      {/* Next month button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        onClick={handleNextMonth}
+        disabled={!canGoNext}
+      >
+        <ChevronRight className="size-4" />
+      </Button>
     </div>
   );
 }
