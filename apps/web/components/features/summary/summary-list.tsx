@@ -8,6 +8,7 @@ import {
   isSameMonth,
   isAfter,
   isBefore,
+  differenceInDays,
 } from 'date-fns';
 import { Sparkles } from 'lucide-react';
 import {
@@ -71,11 +72,16 @@ export function SummaryList({
       // Skip weeks before earliest data
       if (earliestDataDate && isBefore(weekEnd, earliestDataDate)) continue;
 
-      // Check if has data
+      // Skip current week if less than 4 days have passed
+      const isCurrentWeek = isSameWeek(now, periodStartDate, { weekStartsOn: 1 });
+      if (isCurrentWeek) {
+        const daysPassed = differenceInDays(now, periodStartDate) + 1;
+        if (daysPassed < 4) continue;
+      }
+
       const rangeKey = `${periodStartDate.toISOString()}-${weekEnd.toISOString()}`;
       const hasData = dataAvailability.get(rangeKey) ?? false;
 
-      // Find matching summary
       const matchingSummary = summaries.find(
         (s) =>
           s.period === 'week' &&
@@ -99,8 +105,11 @@ export function SummaryList({
       // Skip months before earliest data
       const skipMonth = earliestDataDate && isBefore(monthEnd, earliestDataDate);
 
-      if (!skipMonth) {
-        // Check if has data
+      // Skip current month if less than 15 days have passed
+      const isCurrentMonth = isSameMonth(now, monthDate);
+      const daysPassed = isCurrentMonth ? differenceInDays(now, monthStart) + 1 : 31;
+
+      if (!skipMonth && daysPassed >= 15) {
         const rangeKey = `${monthStart.toISOString()}-${monthEnd.toISOString()}`;
         const hasData = dataAvailability.get(rangeKey) ?? false;
 
@@ -121,14 +130,12 @@ export function SummaryList({
     }
   }
 
-  // Sort by periodStart descending, then by period type (month before week for same start)
+  // Sort: monthly first, then weekly by periodStart descending
   slots.sort((a, b) => {
-    const dateCompare = b.periodStart.getTime() - a.periodStart.getTime();
-    if (dateCompare !== 0) return dateCompare;
-    // For same start date, show monthly before weekly
-    if (a.period === 'month' && b.period === 'week') return -1;
-    if (a.period === 'week' && b.period === 'month') return 1;
-    return 0;
+    if (a.period !== b.period) {
+      return a.period === 'month' ? -1 : 1;
+    }
+    return b.periodStart.getTime() - a.periodStart.getTime();
   });
 
   if (slots.length === 0) {
