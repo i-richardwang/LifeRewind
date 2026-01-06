@@ -1,4 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { hostname } from 'node:os';
 import { ZodError } from 'zod';
 import { configSchema, type CollectorConfig } from './schema.js';
 import { getAllConfigPaths } from './paths.js';
@@ -35,6 +37,10 @@ export function loadConfig(customPath?: string): CollectorConfig {
   if (envApiUrl && envApiKey) {
     try {
       return configSchema.parse({
+        device: {
+          id: process.env['LIFEREWIND_DEVICE_ID'] || randomUUID(),
+          name: process.env['LIFEREWIND_DEVICE_NAME'] || hostname(),
+        },
         api: {
           baseUrl: envApiUrl,
           apiKey: envApiKey,

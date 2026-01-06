@@ -82,6 +82,8 @@ const collectedItemSchema = z.object({
 });
 
 const ingestRequestSchema = z.object({
+  deviceId: z.string().uuid(),
+  deviceName: z.string().optional(),
   sourceType: sourceTypeSchema,
   collectedAt: z.string(),
   items: z.array(collectedItemSchema).max(MAX_ITEMS_PER_REQUEST),
@@ -110,9 +112,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { sourceType, collectedAt, items } = parseResult.data;
+    const { deviceId, deviceName, sourceType, collectedAt, items } = parseResult.data;
 
     const result = await ingestItems({
+      deviceId,
+      deviceName,
       sourceType,
       collectedAt: new Date(collectedAt),
       items,

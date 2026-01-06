@@ -127,6 +127,10 @@ Example configuration:
 
 ```json
 {
+  "device": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "my-macbook"
+  },
   "api": {
     "baseUrl": "http://localhost:3000",
     "apiKey": "your-secure-api-key"
@@ -213,6 +217,8 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
+  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+  "deviceName": "my-macbook",
   "sourceType": "git" | "browser" | "filesystem" | "chatbot",
   "collectedAt": "2024-12-19T12:00:00.000Z",
   "items": [...]

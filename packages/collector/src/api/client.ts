@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { CollectionResult } from '../core/types.js';
 import type { Logger } from '../utils/logger.js';
+import type { DeviceConfig } from '../config/schema.js';
 import { retry } from '../utils/retry.js';
 
 export interface ApiClientConfig {
@@ -8,6 +9,7 @@ export interface ApiClientConfig {
   apiKey: string;
   timeout: number;
   retryAttempts: number;
+  device: DeviceConfig;
 }
 
 const pushResponseSchema = z.object({
@@ -129,6 +131,8 @@ export class ApiClient {
             'X-Source-Type': result.sourceType,
           },
           body: JSON.stringify({
+            deviceId: this.config.device.id,
+            deviceName: this.config.device.name,
             sourceType: result.sourceType,
             collectedAt: result.collectedAt.toISOString(),
             items: result.items,

@@ -108,6 +108,12 @@ export const DEFAULT_SOURCES = {
   },
 } satisfies z.infer<typeof sourcesSchema>;
 
+// Device config
+const deviceSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().optional(),
+});
+
 // Logging config
 const loggingSchema = z.object({
   level: z.enum(['debug', 'info', 'warn', 'error']),
@@ -119,6 +125,7 @@ const DEFAULT_LOGGING = {
 
 // Main config schema
 export const configSchema = z.object({
+  device: deviceSchema,
   api: z.object({
     baseUrl: z.url(),
     apiKey: z.string().min(1),
@@ -130,3 +137,4 @@ export const configSchema = z.object({
 });
 
 export type CollectorConfig = z.infer<typeof configSchema>;
+export type DeviceConfig = z.infer<typeof deviceSchema>;

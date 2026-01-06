@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { insertItems, upsertFilesystemItems } from '@/db/queries/items';
 import { createCollectionLog } from '@/db/queries/logs';
 import type { NewCollectedItem, SourceType } from '@/db/schema';
+import { GLOBAL_DEVICE_ID } from '@/db/schema';
 
 function sha256(input: string): string {
   return createHash('sha256').update(input).digest('hex');
@@ -77,6 +78,8 @@ export interface CollectedItemPayload {
 }
 
 export interface IngestParams {
+  deviceId: string;
+  deviceName?: string;
   sourceType: SourceType;
   collectedAt: Date;
   items: CollectedItemPayload[];
@@ -91,9 +94,11 @@ export interface IngestResult {
  * Ingest collected items from collector
  */
 export async function ingestItems(params: IngestParams): Promise<IngestResult> {
-  const { sourceType, collectedAt, items } = params;
+  const { deviceId, deviceName, sourceType, collectedAt, items } = params;
 
-  const transformedItems = items.map((item) => transformItem(item, collectedAt));
+  const transformedItems = items.map((item) =>
+    transformItem(item, collectedAt, deviceId, deviceName)
+  );
 
   let itemsInserted = 0;
   if (transformedItems.length > 0) {
@@ -126,16 +131,21 @@ export async function ingestItems(params: IngestParams): Promise<IngestResult> {
   };
 }
 
-function transformItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
+function transformItem(
+  item: CollectedItemPayload,
+  collectedAt: Date,
+  deviceId: string,
+  deviceName?: string
+): NewCollectedItem {
   switch (item.sourceType) {
     case 'git':
       return transformGitItem(item, collectedAt);
     case 'browser':
-      return transformBrowserItem(item, collectedAt);
+      return transformBrowserItem(item, collectedAt, deviceId, deviceName);
     case 'filesystem':
-      return transformFilesystemItem(item, collectedAt);
+      return transformFilesystemItem(item, collectedAt, deviceId, deviceName);
     case 'chatbot':
-      return transformChatbotItem(item, collectedAt);
+      return transformChatbotItem(item, collectedAt, deviceId, deviceName);
   }
 }
 
@@ -147,6 +157,8 @@ function transformGitItem(item: CollectedItemPayload, collectedAt: Date): NewCol
 
   return {
     sourceType: 'git',
+    deviceId: GLOBAL_DEVICE_ID,
+    deviceName: null,
     sourceKey: data.hash,
     timestamp: new Date(data.date),
     title,
@@ -163,11 +175,18 @@ function transformGitItem(item: CollectedItemPayload, collectedAt: Date): NewCol
   };
 }
 
-function transformBrowserItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
+function transformBrowserItem(
+  item: CollectedItemPayload,
+  collectedAt: Date,
+  deviceId: string,
+  deviceName?: string
+): NewCollectedItem {
   const data = item.data as BrowserHistoryPayload;
 
   return {
     sourceType: 'browser',
+    deviceId,
+    deviceName,
     sourceKey: sha256(`${data.url}|${data.browser}|${data.date}`),
     timestamp: new Date(data.lastVisitTime),
     title: data.title,
@@ -185,7 +204,12 @@ function transformBrowserItem(item: CollectedItemPayload, collectedAt: Date): Ne
   };
 }
 
-function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
+function transformFilesystemItem(
+  item: CollectedItemPayload,
+  collectedAt: Date,
+  deviceId: string,
+  deviceName?: string
+): NewCollectedItem {
   const data = item.data as FilesystemPayload;
   const modifiedTimestamp = new Date(data.modifiedAt);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -193,6 +217,8 @@ function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date):
 
   return {
     sourceType: 'filesystem',
+    deviceId,
+    deviceName,
     sourceKey: sha256(`${data.filePath}|${date}`),
     timestamp: modifiedTimestamp,
     title: data.fileName,
@@ -214,11 +240,18 @@ function transformFilesystemItem(item: CollectedItemPayload, collectedAt: Date):
   };
 }
 
-function transformChatbotItem(item: CollectedItemPayload, collectedAt: Date): NewCollectedItem {
+function transformChatbotItem(
+  item: CollectedItemPayload,
+  collectedAt: Date,
+  deviceId: string,
+  deviceName?: string
+): NewCollectedItem {
   const data = item.data as ChatbotPayload;
 
   return {
     sourceType: 'chatbot',
+    deviceId,
+    deviceName,
     sourceKey: `${data.client}:${data.session.id}`,
     timestamp: new Date(data.session.lastReplyAt),
     title: data.session.title,

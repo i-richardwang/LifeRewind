@@ -1,6 +1,8 @@
 import { Command } from 'commander';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { hostname } from 'node:os';
 import { confirm, select, checkbox, input } from '@inquirer/prompts';
 import { detectInstalledBrowsers, detectGitInstalled, detectChatbotClients, getGitUserInfo } from '../detect/index.js';
 import { writeConfig } from '../../config/writer.js';
@@ -18,6 +20,10 @@ import { DEFAULT_SOURCES, type CollectorConfig } from '../../config/schema.js';
 /** Create initial config with all sources disabled */
 function createInitialConfig(): CollectorConfig {
   return {
+    device: {
+      id: randomUUID(),
+      name: undefined,
+    },
     api: { baseUrl: '', apiKey: '', timeout: 30000, retryAttempts: 3 },
     sources: {
       git: { ...DEFAULT_SOURCES.git, enabled: false, options: { ...DEFAULT_SOURCES.git.options, scanPaths: [] } },
@@ -52,13 +58,27 @@ export const initCommand = new Command('init')
 
     const config = createInitialConfig();
 
-    // Step 1: API Configuration
-    printSection('Step 1/6: API Configuration');
+    // Step 1: Device Configuration
+    printSection('Step 1/7: Device Configuration');
+    printDim(`  Device ID: ${config.device.id}`);
+    printDim(`  Hostname: ${hostname()}`);
+    console.log();
+
+    const deviceName = await input({
+      message: 'Device name (for identification):',
+      default: hostname(),
+    });
+    if (deviceName.trim()) {
+      config.device.name = deviceName.trim();
+    }
+
+    // Step 2: API Configuration
+    printSection('Step 2/7: API Configuration');
     config.api.baseUrl = await inputApiUrl();
     config.api.apiKey = await inputApiKey();
 
-    // Step 2: Browser History
-    printSection('Step 2/6: Browser History');
+    // Step 3: Browser History
+    printSection('Step 3/7: Browser History');
     const detectedBrowsers = detectInstalledBrowsers();
     if (detectedBrowsers.length > 0) {
       printDim(`  Detected: ${detectedBrowsers.join(', ')}`);
@@ -106,8 +126,8 @@ export const initCommand = new Command('init')
       }
     }
 
-    // Step 3: Git Commits
-    printSection('Step 3/6: Git Commits');
+    // Step 4: Git Commits
+    printSection('Step 4/7: Git Commits');
     const gitInstalled = detectGitInstalled();
     const gitUser = getGitUserInfo();
     printDim(gitInstalled ? '  Git is installed' : '  Git not found');
@@ -157,8 +177,8 @@ export const initCommand = new Command('init')
       }
     }
 
-    // Step 4: Filesystem
-    printSection('Step 4/6: Filesystem Changes');
+    // Step 5: Filesystem
+    printSection('Step 5/7: Filesystem Changes');
     const enableFilesystem = await confirm({
       message: 'Enable filesystem monitoring?',
       default: true,
@@ -188,8 +208,8 @@ export const initCommand = new Command('init')
       }
     }
 
-    // Step 5: Chatbot
-    printSection('Step 5/6: Chatbot History');
+    // Step 6: Chatbot
+    printSection('Step 6/7: Chatbot History');
     const detectedChatbots = detectChatbotClients();
     if (detectedChatbots.length > 0) {
       printDim(`  Detected: ${detectedChatbots.join(', ')}`);
@@ -213,8 +233,8 @@ export const initCommand = new Command('init')
       };
     }
 
-    // Step 6: Initial Collection Settings
-    printSection('Step 6/6: Initial Collection');
+    // Step 7: Initial Collection Settings
+    printSection('Step 7/7: Initial Collection');
     printDim('  Configure how far back to collect data on the first run.');
     printDim('  Daily collection uses a shorter range (2 days by default).');
     console.log();
@@ -255,6 +275,7 @@ export const initCommand = new Command('init')
     }
 
     printSection('Configuration Summary');
+    console.log(`  Device: ${config.device.name || 'unnamed'} (${config.device.id.slice(0, 8)}...)`);
     console.log(`  API: ${config.api.baseUrl}`);
     console.log('  Sources enabled:');
     console.log(`    ${config.sources.browser.enabled ? '✓' : '✗'} Browser`);

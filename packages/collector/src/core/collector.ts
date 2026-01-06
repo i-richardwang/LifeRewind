@@ -17,7 +17,13 @@ export class Collector {
     this.config = config;
     this.logger = logger;
     this.scheduler = new Scheduler(logger);
-    this.apiClient = new ApiClient(config.api, logger);
+    this.apiClient = new ApiClient(
+      {
+        ...config.api,
+        device: config.device,
+      },
+      logger
+    );
   }
 
   async validateSources(): Promise<void> {

@@ -70,11 +70,16 @@ export interface ChatbotData {
 
 export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData;
 
+// Special device ID for globally unique data sources (e.g., git commits)
+export const GLOBAL_DEVICE_ID = 'global';
+
 export const collectedItems = pgTable(
   'collected_items',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     sourceType: varchar('source_type', { length: 20 }).$type<SourceType>().notNull(),
+    deviceId: varchar('device_id', { length: 64 }).notNull(),
+    deviceName: varchar('device_name', { length: 100 }),
     sourceKey: varchar('source_key', { length: 64 }).notNull(),
     timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
     title: text('title'),
@@ -84,10 +89,15 @@ export const collectedItems = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex('idx_collected_items_source_key').on(table.sourceType, table.sourceKey),
+    uniqueIndex('idx_collected_items_source_device_key').on(
+      table.sourceType,
+      table.deviceId,
+      table.sourceKey
+    ),
     index('idx_collected_items_timestamp').on(table.timestamp),
     index('idx_collected_items_source_type').on(table.sourceType),
     index('idx_collected_items_source_timestamp').on(table.sourceType, table.timestamp),
+    index('idx_collected_items_device_id').on(table.deviceId),
   ]
 );
 

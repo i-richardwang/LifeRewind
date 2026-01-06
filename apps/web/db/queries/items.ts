@@ -160,12 +160,13 @@ export async function insertItems(
       .insert(collectedItems)
       .values(items)
       .onConflictDoUpdate({
-        target: [collectedItems.sourceType, collectedItems.sourceKey],
+        target: [collectedItems.sourceType, collectedItems.deviceId, collectedItems.sourceKey],
         set: {
           timestamp: sql`excluded.timestamp`,
           title: sql`excluded.title`,
           url: sql`excluded.url`,
           data: sql`excluded.data`,
+          deviceName: sql`excluded.device_name`,
           collectedAt: sql`excluded.collected_at`,
         },
       })
@@ -176,7 +177,7 @@ export async function insertItems(
     .insert(collectedItems)
     .values(items)
     .onConflictDoNothing({
-      target: [collectedItems.sourceType, collectedItems.sourceKey],
+      target: [collectedItems.sourceType, collectedItems.deviceId, collectedItems.sourceKey],
     })
     .returning();
 }
@@ -193,7 +194,7 @@ export async function upsertFilesystemItems(items: NewCollectedItem[]) {
     .insert(collectedItems)
     .values(items)
     .onConflictDoUpdate({
-      target: [collectedItems.sourceType, collectedItems.sourceKey],
+      target: [collectedItems.sourceType, collectedItems.deviceId, collectedItems.sourceKey],
       set: {
         // Update timestamp to the newer one
         timestamp: sql`
@@ -205,6 +206,7 @@ export async function upsertFilesystemItems(items: NewCollectedItem[]) {
         `,
         title: sql`excluded.title`,
         url: sql`excluded.url`,
+        deviceName: sql`excluded.device_name`,
         // Conditionally update data with incremented count
         data: sql`
           CASE
