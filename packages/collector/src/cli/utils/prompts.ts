@@ -40,24 +40,22 @@ export const SCHEDULE_CHOICES_WITH_HINT = [
 
 const home = homedir();
 
+interface PathPresetsConfig {
+  roots: string[];
+  defaultSelected: string[];
+}
+
 /** Preset paths for Git repository scanning */
-export const GIT_PATH_PRESETS = [
-  { path: `${home}/Documents`, defaultChecked: true },
-  { path: `${home}/Desktop`, defaultChecked: false },
-  { path: `${home}/Developer`, defaultChecked: false },
-];
+export const GIT_PATH_PRESETS: PathPresetsConfig = {
+  roots: [home],
+  defaultSelected: [`${home}/Documents`],
+};
 
 /** Preset paths for Filesystem monitoring */
-export const FILESYSTEM_PATH_PRESETS = [
-  { path: `${home}/Documents`, defaultChecked: true },
-  { path: `${home}/Desktop`, defaultChecked: true },
-  { path: `${home}/Downloads`, defaultChecked: true },
-];
-
-interface PathPreset {
-  path: string;
-  defaultChecked: boolean;
-}
+export const FILESYSTEM_PATH_PRESETS: PathPresetsConfig = {
+  roots: [home],
+  defaultSelected: [`${home}/Documents`, `${home}/Downloads`],
+};
 
 /**
  * Interactive directory browser for path selection
@@ -65,24 +63,21 @@ interface PathPreset {
  */
 export async function selectPaths(
   message: string,
-  presets: PathPreset[],
+  presets: PathPresetsConfig,
   currentPaths?: string[]
 ): Promise<string[]> {
-  // Filter to existing paths
-  const existingPresets = presets.filter((p) => existsSync(p.path));
-
-  // Determine default selected paths
-  const defaultSelected = existingPresets
-    .filter((preset) => (currentPaths ? currentPaths.includes(preset.path) : preset.defaultChecked))
-    .map((p) => p.path);
-
-  // Use all preset paths as root paths for browsing
-  const rootPaths = existingPresets.map((p) => p.path);
+  // Filter to existing root paths
+  const rootPaths = presets.roots.filter((p) => existsSync(p));
 
   if (rootPaths.length === 0) {
     printDim('  No valid paths to browse');
     return [];
   }
+
+  // Determine default selected paths (filter to existing)
+  const defaultSelected = currentPaths
+    ? currentPaths.filter((p) => existsSync(p))
+    : presets.defaultSelected.filter((p) => existsSync(p));
 
   const selected = await directoryBrowser({
     message,
