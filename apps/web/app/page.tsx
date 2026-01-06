@@ -18,6 +18,7 @@ import {
 } from '@/components/features/summary';
 import { findSummariesByMonth, getMonthsWithSummaries } from '@/db/queries/summaries';
 import { getEarliestItemDate, getDataAvailabilityForRanges } from '@/db/queries/items';
+import { weekBelongsToMonth } from '@/lib/date-utils';
 import type { SummaryPeriod } from '@/db/schema';
 
 export const metadata: Metadata = {
@@ -140,8 +141,11 @@ async function SummaryListWithData({
       { weekStartsOn: 1 }
     );
     for (const weekStart of weeks) {
+      const periodStart = startOfWeek(weekStart, { weekStartsOn: 1 });
+      // ISO week rule: only include weeks whose Thursday falls in this month
+      if (!weekBelongsToMonth(periodStart, monthDate)) continue;
       ranges.push({
-        from: startOfWeek(weekStart, { weekStartsOn: 1 }),
+        from: periodStart,
         to: endOfWeek(weekStart, { weekStartsOn: 1 }),
       });
     }

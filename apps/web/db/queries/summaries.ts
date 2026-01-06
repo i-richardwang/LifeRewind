@@ -1,4 +1,5 @@
 import { desc, eq, and, gte, lt } from 'drizzle-orm';
+import { addDays } from 'date-fns';
 import { db } from '..';
 import {
   summaries,
@@ -7,6 +8,10 @@ import {
   type SummaryPeriod,
   type SummaryStatus,
 } from '../schema';
+
+function getWeekThursday(weekStart: Date): Date {
+  return addDays(weekStart, 3);
+}
 
 export interface FindSummariesOptions {
   period?: SummaryPeriod;
@@ -129,21 +134,25 @@ export async function findSummariesByMonth(
 
 /**
  * Get years that have completed summaries.
- * Considers both periodStart and periodEnd for cross-year periods.
+ * For weekly summaries, uses ISO week rule (Thursday determines the year).
  */
 export async function getYearsWithSummaries(): Promise<number[]> {
   const allSummaries = await db
     .select({
+      period: summaries.period,
       periodStart: summaries.periodStart,
-      periodEnd: summaries.periodEnd,
     })
     .from(summaries)
     .where(eq(summaries.status, 'completed'));
 
   const yearsSet = new Set<number>();
   for (const summary of allSummaries) {
-    yearsSet.add(summary.periodStart.getFullYear());
-    yearsSet.add(summary.periodEnd.getFullYear());
+    if (summary.period === 'week') {
+      const thursday = getWeekThursday(summary.periodStart);
+      yearsSet.add(thursday.getFullYear());
+    } else {
+      yearsSet.add(summary.periodStart.getFullYear());
+    }
   }
 
   return Array.from(yearsSet).sort((a, b) => b - a);
@@ -151,7 +160,7 @@ export async function getYearsWithSummaries(): Promise<number[]> {
 
 /**
  * Get months in a year that have completed summaries.
- * Considers summaries that overlap with each month.
+ * For weekly summaries, uses ISO week rule (Thursday determines the month).
  */
 export async function getMonthsWithSummaries(year: number): Promise<number[]> {
   const yearStart = new Date(year, 0, 1);
@@ -159,6 +168,7 @@ export async function getMonthsWithSummaries(year: number): Promise<number[]> {
 
   const allSummaries = await db
     .select({
+      period: summaries.period,
       periodStart: summaries.periodStart,
       periodEnd: summaries.periodEnd,
     })
@@ -173,11 +183,14 @@ export async function getMonthsWithSummaries(year: number): Promise<number[]> {
 
   const monthsSet = new Set<number>();
   for (const summary of allSummaries) {
-    for (let m = 1; m <= 12; m++) {
-      const monthStart = new Date(year, m - 1, 1);
-      const monthEnd = new Date(year, m, 1);
-      if (summary.periodStart < monthEnd && summary.periodEnd >= monthStart) {
-        monthsSet.add(m);
+    if (summary.period === 'week') {
+      const thursday = getWeekThursday(summary.periodStart);
+      if (thursday.getFullYear() === year) {
+        monthsSet.add(thursday.getMonth() + 1);
+      }
+    } else {
+      if (summary.periodStart.getFullYear() === year) {
+        monthsSet.add(summary.periodStart.getMonth() + 1);
       }
     }
   }

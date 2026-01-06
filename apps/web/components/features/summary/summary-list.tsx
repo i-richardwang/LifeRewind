@@ -19,6 +19,7 @@ import {
   EmptyDescription,
 } from '@workspace/ui';
 import type { Summary, SummaryPeriod } from '@/db/schema';
+import { weekBelongsToMonth } from '@/lib/date-utils';
 import { SummaryCard } from './summary-card';
 import { EmptySummaryCard } from './empty-summary-card';
 
@@ -65,6 +66,9 @@ export function SummaryList({
     for (const weekStart of weeks) {
       const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
       const periodStartDate = startOfWeek(weekStart, { weekStartsOn: 1 });
+
+      // ISO week rule: week belongs to month containing its Thursday
+      if (!weekBelongsToMonth(periodStartDate, monthDate)) continue;
 
       // Skip future weeks
       if (isAfter(periodStartDate, now)) continue;
