@@ -156,6 +156,7 @@ async function SummaryListWithData({
       year,
       month,
       period: periodFilter === 'all' ? undefined : periodFilter,
+      includeNonCompleted: true, // Include pending/generating summaries
     }),
     getEarliestItemDate(),
     getDataAvailabilityForRanges(ranges),

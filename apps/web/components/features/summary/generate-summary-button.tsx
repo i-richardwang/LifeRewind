@@ -12,19 +12,26 @@ import {
 } from '@workspace/ui';
 import { Plus, Loader2, ChevronDown, Calendar, CalendarDays } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, subWeeks, subMonths } from 'date-fns';
-
-type Period = 'week' | 'month';
+import { useSummaryPolling } from '@/hooks';
+import type { SummaryPeriod } from '@/db/schema';
 
 interface GenerateOption {
   label: string;
-  period: Period;
+  period: SummaryPeriod;
   date: Date;
   description: string;
 }
 
 export function GenerateSummaryButton() {
   const [loading, setLoading] = useState(false);
+  const [statusText, setStatusText] = useState('');
   const router = useRouter();
+
+  const { startPolling } = useSummaryPolling({
+    onStatusChange: (status) => {
+      setStatusText(status === 'generating' ? 'Generating...' : 'Preparing...');
+    },
+  });
 
   const today = new Date();
 
@@ -55,8 +62,10 @@ export function GenerateSummaryButton() {
     },
   ];
 
-  const handleGenerate = async (period: Period, date: Date) => {
+  const handleGenerate = async (period: SummaryPeriod, date: Date) => {
     setLoading(true);
+    setStatusText('Creating task...');
+
     try {
       const res = await fetch('/api/summary', {
         method: 'POST',
@@ -70,17 +79,23 @@ export function GenerateSummaryButton() {
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(
-          errorData.error || errorData.message || 'Failed to generate summary'
+          errorData.error || errorData.message || 'Failed to create summary task'
         );
       }
+
+      const { data } = await res.json();
+
+      await startPolling(data.id);
 
       toast.success('Summary generated successfully');
       router.refresh();
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Failed to generate summary:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to generate summary');
     } finally {
       setLoading(false);
+      setStatusText('');
     }
   };
 
@@ -93,8 +108,8 @@ export function GenerateSummaryButton() {
           ) : (
             <Plus className="size-4" />
           )}
-          Generate
-          <ChevronDown className="size-3" />
+          {loading && statusText ? statusText : 'Generate'}
+          {!loading && <ChevronDown className="size-3" />}
         </Button>
       </DropdownMenuTrigger>
 

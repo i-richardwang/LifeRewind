@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { withErrorHandler, success } from '@/lib/api';
-import { listSummaries, generateSummary } from '@/services/summary.service';
+import { listSummaries, createSummaryTask } from '@/services/summary.service';
 import type { SummaryPeriod } from '@/db/schema';
 
 const generateSchema = z.object({
@@ -16,7 +16,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const body = await request.json();
   const { period, date } = generateSchema.parse(body);
 
-  const summary = await generateSummary({ period, date });
+  // Create task and return immediately (async processing)
+  const summary = await createSummaryTask({ period, date });
 
   return success(summary);
 });

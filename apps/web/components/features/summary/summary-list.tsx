@@ -153,7 +153,26 @@ export function SummaryList({
         const key = `${slot.period}-${slot.periodStart.toISOString()}`;
 
         if (slot.summary) {
-          return <SummaryCard key={key} summary={slot.summary} />;
+          // If summary is completed, show normal card
+          if (slot.summary.status === 'completed') {
+            return <SummaryCard key={key} summary={slot.summary} />;
+          }
+
+          // For pending/generating/failed, show empty card with existing summary info
+          return (
+            <EmptySummaryCard
+              key={key}
+              period={slot.period}
+              periodStart={slot.periodStart}
+              periodEnd={slot.periodEnd}
+              hasData={slot.hasData}
+              existingSummary={{
+                id: slot.summary.id,
+                status: slot.summary.status,
+                error: slot.summary.error,
+              }}
+            />
+          );
         }
 
         return (

@@ -1,9 +1,13 @@
 import { generateText } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
-import { AppError } from '@/lib/api/errors';
 import { findItems } from '@/db/queries/items';
-import { findSummaries, createSummary } from '@/db/queries/summaries';
+import {
+  findSummaries,
+  createSummary,
+  findSummaryById,
+  updateSummary,
+} from '@/db/queries/summaries';
 import type {
   CollectedItem,
   GitData,
@@ -14,7 +18,6 @@ import type {
   Summary,
 } from '@/db/schema';
 
-// Lazy-loaded LLM provider
 function getLLM() {
   return createOpenAICompatible({
     name: 'liferewind-llm',
@@ -33,9 +36,6 @@ export interface GenerateSummaryParams {
   date: Date;
 }
 
-/**
- * List existing summaries
- */
 export async function listSummaries(params: ListSummariesParams = {}): Promise<Summary[]> {
   return findSummaries({
     period: params.period,
@@ -43,53 +43,80 @@ export async function listSummaries(params: ListSummariesParams = {}): Promise<S
   });
 }
 
-/**
- * Generate a new AI summary for a given period
- */
-export async function generateSummary(params: GenerateSummaryParams): Promise<Summary> {
+export async function getSummary(id: string): Promise<Summary | null> {
+  return findSummaryById(id);
+}
+
+export async function createSummaryTask(params: GenerateSummaryParams): Promise<Summary> {
   const { period, date } = params;
   const { periodStart, periodEnd } = getPeriodRange(period, date);
 
-  // Fetch all items in the period
-  const items = await findItems({
-    from: periodStart,
-    to: periodEnd,
-    limit: 5000,
-  });
-
-  if (items.length === 0) {
-    throw AppError.badRequest('No data found for the specified period');
-  }
-
-  // Aggregate data
-  const aggregatedData = aggregateData(items);
-
-  // Generate AI summary
-  const { title, content, highlights } = await generateAIContent(
+  const summary = await createSummary({
     period,
     periodStart,
     periodEnd,
-    aggregatedData
-  );
-
-  // Save to database
-  return createSummary({
-    period,
-    periodStart,
-    periodEnd,
-    title,
-    content,
-    highlights,
-    dataStats: {
-      gitCommits: aggregatedData.git.commits.length,
-      browserVisits: aggregatedData.browser.totalVisits,
-      filesChanged: aggregatedData.filesystem.files.length,
-      chatSessions: aggregatedData.chatbot.sessions.length,
-    },
+    status: 'pending',
   });
+
+  processSummaryInBackground(summary.id).catch((error) => {
+    console.error(`Background processing failed for summary ${summary.id}:`, error);
+  });
+
+  return summary;
 }
 
-// Helper functions
+async function processSummaryInBackground(summaryId: string): Promise<void> {
+  try {
+    await updateSummary(summaryId, { status: 'generating' });
+
+    const summary = await findSummaryById(summaryId);
+    if (!summary) {
+      throw new Error('Summary not found');
+    }
+
+    const items = await findItems({
+      from: summary.periodStart,
+      to: summary.periodEnd,
+      limit: 5000,
+    });
+
+    if (items.length === 0) {
+      await updateSummary(summaryId, {
+        status: 'failed',
+        error: 'No data found for the specified period',
+      });
+      return;
+    }
+
+    const aggregatedData = aggregateData(items);
+
+    const { title, content, highlights } = await generateAIContent(
+      summary.period,
+      summary.periodStart,
+      summary.periodEnd,
+      aggregatedData
+    );
+
+    await updateSummary(summaryId, {
+      status: 'completed',
+      title,
+      content,
+      highlights,
+      dataStats: {
+        gitCommits: aggregatedData.git.commits.length,
+        browserVisits: aggregatedData.browser.totalVisits,
+        filesChanged: aggregatedData.filesystem.files.length,
+        chatSessions: aggregatedData.chatbot.sessions.length,
+      },
+    });
+  } catch (error) {
+    console.error(`Failed to process summary ${summaryId}:`, error);
+    await updateSummary(summaryId, {
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    });
+  }
+}
 
 function getPeriodRange(period: SummaryPeriod, date: Date) {
   if (period === 'week') {
@@ -172,7 +199,6 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
           const url = new URL(item.url || '');
           domainCounts[url.hostname] = (domainCounts[url.hostname] || 0) + data.dailyVisitCount;
 
-          // Track individual pages with titles
           const pageKey = item.url || '';
           if (pageKey && item.title) {
             if (!pageCounts[pageKey]) {
@@ -181,7 +207,7 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
             pageCounts[pageKey].visits += data.dailyVisitCount;
           }
         } catch {
-          // Invalid URL, skip
+          // Skip invalid URLs
         }
         break;
       }
@@ -198,7 +224,6 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
         const ext = data.extension || 'unknown';
         result.filesystem.byExtension[ext] = (result.filesystem.byExtension[ext] || 0) + 1;
 
-        // Track by parent directory
         const dir = data.parentDirectory || data.filePath.split('/').slice(0, -1).join('/') || '/';
         result.filesystem.byDirectory[dir] = (result.filesystem.byDirectory[dir] || 0) + 1;
         break;
@@ -216,13 +241,11 @@ function aggregateData(items: CollectedItem[]): AggregatedData {
     }
   }
 
-  // Sort domains by visit count
   result.browser.topDomains = Object.entries(domainCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([domain, visits]) => ({ domain, visits }));
 
-  // Sort pages by visit count
   result.browser.topPages = Object.values(pageCounts)
     .sort((a, b) => b.visits - a.visits)
     .slice(0, 15);
