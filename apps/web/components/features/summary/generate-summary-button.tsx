@@ -1,139 +1,59 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@workspace/ui';
-import { Plus, Loader2, ChevronDown, Calendar, CalendarDays } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, subWeeks, subMonths } from 'date-fns';
-import { useSummaryPolling } from '@/hooks';
-import type { SummaryPeriod } from '@/db/schema';
-
-interface GenerateOption {
-  label: string;
-  period: SummaryPeriod;
-  date: Date;
-  description: string;
-}
+import { Button } from '@workspace/ui';
+import { Sparkles, Loader2 } from 'lucide-react';
 
 export function GenerateSummaryButton() {
   const [loading, setLoading] = useState(false);
-  const [statusText, setStatusText] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const { startPolling } = useSummaryPolling({
-    onStatusChange: (status) => {
-      setStatusText(status === 'generating' ? 'Generating...' : 'Preparing...');
-    },
-  });
+  const now = new Date();
+  const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
+  const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
 
-  const today = new Date();
-
-  const quickOptions: GenerateOption[] = [
-    {
-      label: 'This Week',
-      period: 'week',
-      date: today,
-      description: `${format(startOfWeek(today, { weekStartsOn: 1 }), 'MMM d')} - ${format(endOfWeek(today, { weekStartsOn: 1 }), 'MMM d')}`,
-    },
-    {
-      label: 'Last Week',
-      period: 'week',
-      date: subWeeks(today, 1),
-      description: `${format(startOfWeek(subWeeks(today, 1), { weekStartsOn: 1 }), 'MMM d')} - ${format(endOfWeek(subWeeks(today, 1), { weekStartsOn: 1 }), 'MMM d')}`,
-    },
-    {
-      label: 'This Month',
-      period: 'month',
-      date: today,
-      description: format(today, 'MMMM yyyy'),
-    },
-    {
-      label: 'Last Month',
-      period: 'month',
-      date: subMonths(today, 1),
-      description: format(subMonths(today, 1), 'MMMM yyyy'),
-    },
-  ];
-
-  const handleGenerate = async (period: SummaryPeriod, date: Date) => {
+  const handleGenerate = async () => {
     setLoading(true);
-    setStatusText('Creating task...');
 
     try {
-      const res = await fetch('/api/summary', {
+      const res = await fetch('/api/summary/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          period,
-          date: date.toISOString(),
-        }),
+        body: JSON.stringify({ year, month }),
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(
-          errorData.error || errorData.message || 'Failed to create summary task'
-        );
+        throw new Error(errorData.error || 'Failed to create summary tasks');
       }
 
       const { data } = await res.json();
 
-      await startPolling(data.id);
-
-      toast.success('Summary generated successfully');
-      router.refresh();
+      if (data.created > 0) {
+        toast.success(`Started generating ${data.created} summary${data.created > 1 ? 'ies' : ''}`);
+        router.refresh();
+      } else {
+        toast.info('All summaries for this month are already generated');
+      }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') return;
-      console.error('Failed to generate summary:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to generate summary');
+      console.error('Failed to generate summaries:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to generate summaries');
     } finally {
       setLoading(false);
-      setStatusText('');
     }
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" disabled={loading}>
-          {loading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Plus className="size-4" />
-          )}
-          {loading && statusText ? statusText : 'Generate'}
-          {!loading && <ChevronDown className="size-3" />}
-        </Button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="end" className="w-56">
-        {quickOptions.map((option) => (
-          <DropdownMenuItem
-            key={`${option.period}-${option.label}`}
-            onClick={() => handleGenerate(option.period, option.date)}
-            disabled={loading}
-          >
-            {option.period === 'week' ? (
-              <Calendar className="size-4 text-[var(--chart-2)]" />
-            ) : (
-              <CalendarDays className="size-4 text-[var(--chart-4)]" />
-            )}
-            <div className="flex flex-col">
-              <span>{option.label}</span>
-              <span className="text-xs text-muted-foreground">
-                {option.description}
-              </span>
-            </div>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button size="sm" onClick={handleGenerate} disabled={loading}>
+      {loading ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Sparkles className="size-4" />
+      )}
+      {loading ? 'Generating...' : 'Generate'}
+    </Button>
   );
 }

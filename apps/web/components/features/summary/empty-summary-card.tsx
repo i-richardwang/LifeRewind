@@ -29,27 +29,30 @@ export function EmptySummaryCard({
   existingSummary,
 }: EmptySummaryCardProps) {
   const router = useRouter();
-  const [isGenerating, setIsGenerating] = useState(
-    existingSummary?.status === 'pending' || existingSummary?.status === 'generating'
-  );
-  const [isFailed, setIsFailed] = useState(existingSummary?.status === 'failed');
-  const [errorMessage, setErrorMessage] = useState<string | null>(existingSummary?.error || null);
-  const [statusText, setStatusText] = useState(
-    existingSummary?.status === 'generating' ? 'Generating...' : 'Preparing...'
-  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { startPolling, stopPolling } = useSummaryPolling({
-    onStatusChange: (status) => {
-      setStatusText(status === 'generating' ? 'Generating...' : 'Preparing...');
-    },
-  });
+  const { startPolling, stopPolling } = useSummaryPolling();
+
+  // Derived state from props
+  const isPending = existingSummary?.status === 'pending' || existingSummary?.status === 'generating';
+  const isFailed = existingSummary?.status === 'failed';
+  const isLoading = isSubmitting || isPending;
 
   const periodLabel = period === 'week' ? 'Week' : 'Month';
   const dateRange = `${format(periodStart, 'MMM d')} - ${format(periodEnd, 'MMM d, yyyy')}`;
 
+  const statusText = isSubmitting
+    ? 'Creating...'
+    : existingSummary?.status === 'generating'
+      ? 'Generating...'
+      : 'Preparing...';
+
+  // Start polling when existingSummary becomes pending/generating
   useEffect(() => {
-    if (!existingSummary) return;
-    if (existingSummary.status !== 'pending' && existingSummary.status !== 'generating') return;
+    if (!existingSummary || !isPending) return;
+
+    // Clear local submitting state since props now control the loading state
+    setIsSubmitting(false);
 
     startPolling(existingSummary.id)
       .then(() => {
@@ -58,19 +61,15 @@ export function EmptySummaryCard({
       })
       .catch((error) => {
         if (error instanceof Error && error.name === 'AbortError') return;
-        setIsFailed(true);
-        setIsGenerating(false);
-        setErrorMessage(error instanceof Error ? error.message : 'Generation failed');
+        toast.error(error.message || 'Generation failed');
+        router.refresh();
       });
 
     return () => stopPolling();
-  }, [existingSummary, startPolling, stopPolling, router]);
+  }, [existingSummary?.id, isPending, startPolling, stopPolling, router]);
 
   const handleGenerate = async () => {
-    setIsGenerating(true);
-    setIsFailed(false);
-    setErrorMessage(null);
-    setStatusText('Creating task...');
+    setIsSubmitting(true);
 
     try {
       const response = await fetch('/api/summary', {
@@ -84,38 +83,77 @@ export function EmptySummaryCard({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to create summary task');
+        throw new Error(error.error || 'Failed to create summary');
       }
 
-      const { data } = await response.json();
-
-      await startPolling(data.id);
-
-      toast.success('Summary generated successfully');
       router.refresh();
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') return;
-      setIsFailed(true);
-      setErrorMessage(error instanceof Error ? error.message : 'Generation failed');
+      setIsSubmitting(false);
       toast.error(error instanceof Error ? error.message : 'Failed to generate summary');
-    } finally {
-      setIsGenerating(false);
     }
   };
 
-  const handleRetry = () => {
-    setIsFailed(false);
-    setErrorMessage(null);
-    handleGenerate();
-  };
+  // No data state
+  if (!hasData) {
+    return (
+      <Card className="border-dashed">
+        <CardHeader className="pb-3">
+          <CardDescription className="flex items-center gap-1.5">
+            <Calendar className="size-3.5" />
+            {periodLabel}: {dateRange}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <Ban className="mb-3 size-8 text-muted-foreground/30" />
+          <p className="text-sm text-muted-foreground">
+            No data collected for this {period}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const handleDismiss = () => {
-    setIsFailed(false);
-    setErrorMessage(null);
-  };
+  // Failed state
+  if (isFailed) {
+    return (
+      <Card className="border-destructive/50">
+        <CardHeader className="pb-3">
+          <CardDescription className="flex items-center gap-1.5">
+            <Calendar className="size-3.5" />
+            {periodLabel}: {dateRange}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <AlertCircle className="mb-3 size-8 text-destructive/50" />
+          <p className="mb-1 text-sm font-medium text-destructive">
+            Generation failed
+          </p>
+          <p className="mb-4 max-w-xs text-center text-xs text-muted-foreground">
+            {existingSummary?.error}
+          </p>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleGenerate}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              'Retry'
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
+  // Empty/Loading state - ready to generate or generating
   return (
-    <Card className={isFailed ? 'border-destructive/50' : 'border-dashed'}>
+    <Card className="border-dashed">
       <CardHeader className="pb-3">
         <CardDescription className="flex items-center gap-1.5">
           <Calendar className="size-3.5" />
@@ -123,57 +161,28 @@ export function EmptySummaryCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center justify-center py-8">
-        {isFailed ? (
-          <>
-            <AlertCircle className="mb-3 size-8 text-destructive/50" />
-            <p className="mb-1 text-sm font-medium text-destructive">
-              Generation failed
-            </p>
-            <p className="mb-4 max-w-xs text-center text-xs text-muted-foreground">
-              {errorMessage}
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleDismiss}>
-                Dismiss
-              </Button>
-              <Button variant="default" size="sm" onClick={handleRetry}>
-                Retry
-              </Button>
-            </div>
-          </>
-        ) : hasData ? (
-          <>
-            <Sparkles className="mb-3 size-8 text-muted-foreground/50" />
-            <p className="mb-4 text-sm text-muted-foreground">
-              No summary generated yet
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGenerate}
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  {statusText}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-4" />
-                  Generate Summary
-                </>
-              )}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Ban className="mb-3 size-8 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">
-              No data collected for this {period}
-            </p>
-          </>
-        )}
+        <Sparkles className="mb-3 size-8 text-muted-foreground/50" />
+        <p className="mb-4 text-sm text-muted-foreground">
+          No summary generated yet
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleGenerate}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              {statusText}
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-4" />
+              Generate Summary
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
   );

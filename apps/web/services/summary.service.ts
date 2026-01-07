@@ -1,13 +1,27 @@
 import { generateText } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
-import { findItems } from '@/db/queries/items';
+import {
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  eachWeekOfInterval,
+  isSameWeek,
+  isSameMonth,
+  isAfter,
+  isBefore,
+  differenceInDays,
+  format,
+} from 'date-fns';
+import { findItems, hasDataInRange, getEarliestItemDate } from '@/db/queries/items';
 import {
   findSummaries,
+  findSummariesByMonth,
   createSummary,
   findSummaryById,
   updateSummary,
 } from '@/db/queries/summaries';
+import { weekBelongsToMonth } from '@/lib/date-utils';
 import type {
   CollectedItem,
   GitData,
@@ -398,4 +412,110 @@ ${allSessions}
   }
 
   return sections.join('\n\n');
+}
+
+export interface MissingPeriod {
+  period: SummaryPeriod;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+export async function getMissingPeriods(year: number, month: number): Promise<MissingPeriod[]> {
+  const now = new Date();
+  const monthDate = new Date(year, month - 1, 1);
+  const monthStart = startOfMonth(monthDate);
+  const monthEnd = endOfMonth(monthDate);
+
+  const [earliestDataDate, existingSummaries] = await Promise.all([
+    getEarliestItemDate(),
+    findSummariesByMonth({ year, month, includeNonCompleted: true }),
+  ]);
+
+  const missing: MissingPeriod[] = [];
+
+  // Check weekly periods
+  const weeks = eachWeekOfInterval(
+    { start: monthStart, end: monthEnd },
+    { weekStartsOn: 1 }
+  );
+
+  for (const weekStart of weeks) {
+    const periodStart = startOfWeek(weekStart, { weekStartsOn: 1 });
+    const periodEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+
+    // Skip if week doesn't belong to this month (ISO rule)
+    if (!weekBelongsToMonth(periodStart, monthDate)) continue;
+
+    // Skip future weeks
+    if (isAfter(periodStart, now)) continue;
+
+    // Skip weeks before earliest data
+    if (earliestDataDate && isBefore(periodEnd, earliestDataDate)) continue;
+
+    // Skip current week if less than 4 days passed
+    if (isSameWeek(now, periodStart, { weekStartsOn: 1 })) {
+      if (differenceInDays(now, periodStart) + 1 < 4) continue;
+    }
+
+    // Check if summary already exists (any status)
+    const exists = existingSummaries.some(
+      (s) => s.period === 'week' && isSameWeek(s.periodStart, weekStart, { weekStartsOn: 1 })
+    );
+    if (exists) continue;
+
+    // Check if data exists
+    const hasData = await hasDataInRange(periodStart, periodEnd);
+    if (!hasData) continue;
+
+    missing.push({ period: 'week', periodStart, periodEnd });
+  }
+
+  // Check monthly period
+  if (!isAfter(monthStart, now)) {
+    // Skip months before earliest data
+    if (!earliestDataDate || !isBefore(monthEnd, earliestDataDate)) {
+      // Skip current month if less than 15 days passed
+      const isCurrentMonth = isSameMonth(now, monthDate);
+      const daysPassed = isCurrentMonth ? differenceInDays(now, monthStart) + 1 : 31;
+
+      if (daysPassed >= 15) {
+        const exists = existingSummaries.some(
+          (s) => s.period === 'month' && isSameMonth(s.periodStart, monthDate)
+        );
+
+        if (!exists) {
+          const hasData = await hasDataInRange(monthStart, monthEnd);
+          if (hasData) {
+            missing.push({ period: 'month', periodStart: monthStart, periodEnd: monthEnd });
+          }
+        }
+      }
+    }
+  }
+
+  return missing;
+}
+
+export async function createBatchSummaryTasks(
+  periods: MissingPeriod[]
+): Promise<Summary[]> {
+  const results: Summary[] = [];
+
+  for (const { period, periodStart, periodEnd } of periods) {
+    const summary = await createSummary({
+      period,
+      periodStart,
+      periodEnd,
+      status: 'pending',
+    });
+
+    // Start background processing
+    processSummaryInBackground(summary.id).catch((error) => {
+      console.error(`Background processing failed for summary ${summary.id}:`, error);
+    });
+
+    results.push(summary);
+  }
+
+  return results;
 }
