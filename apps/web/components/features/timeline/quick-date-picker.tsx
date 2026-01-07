@@ -10,7 +10,7 @@ import {
   isYesterday,
   isSameDay,
 } from 'date-fns';
-import { Button } from '@workspace/ui';
+import { ToggleGroup, ToggleGroupItem } from '@workspace/ui';
 
 interface QuickDatePickerProps {
   currentDate: Date;
@@ -18,12 +18,7 @@ interface QuickDatePickerProps {
 
 type PresetType = 'today' | 'yesterday' | 'thisWeek' | 'lastWeek';
 
-interface Preset {
-  label: string;
-  value: PresetType;
-}
-
-const PRESETS: Preset[] = [
+const PRESETS: { label: string; value: PresetType }[] = [
   { label: 'Today', value: 'today' },
   { label: 'Yesterday', value: 'yesterday' },
   { label: 'This Week', value: 'thisWeek' },
@@ -48,44 +43,39 @@ export function QuickDatePicker({ currentDate }: QuickDatePickerProps) {
     }
   };
 
-  const isActivePreset = (preset: PresetType): boolean => {
-    switch (preset) {
-      case 'today':
-        return isToday(currentDate);
-      case 'yesterday':
-        return isYesterday(currentDate);
-      case 'thisWeek': {
-        const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-        return isSameDay(currentDate, weekStart);
-      }
-      case 'lastWeek': {
-        const lastWeekStart = startOfWeek(subWeeks(new Date(), 1), {
-          weekStartsOn: 1,
-        });
-        return isSameDay(currentDate, lastWeekStart);
-      }
-    }
+  const getActivePreset = (): PresetType | undefined => {
+    if (isToday(currentDate)) return 'today';
+    if (isYesterday(currentDate)) return 'yesterday';
+
+    const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    if (isSameDay(currentDate, thisWeekStart)) return 'thisWeek';
+
+    const lastWeekStart = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
+    if (isSameDay(currentDate, lastWeekStart)) return 'lastWeek';
+
+    return undefined;
   };
 
-  const handlePresetClick = (preset: PresetType) => {
-    const date = getDateForPreset(preset);
+  const handleValueChange = (value: string) => {
+    if (!value) return;
+    const date = getDateForPreset(value as PresetType);
     const params = new URLSearchParams(searchParams.toString());
     params.set('date', format(date, 'yyyy-MM-dd'));
     router.push(`/timeline?${params.toString()}`);
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      value={getActivePreset()}
+      onValueChange={handleValueChange}
+    >
       {PRESETS.map((preset) => (
-        <Button
-          key={preset.value}
-          variant={isActivePreset(preset.value) ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => handlePresetClick(preset.value)}
-        >
+        <ToggleGroupItem key={preset.value} value={preset.value}>
           {preset.label}
-        </Button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }

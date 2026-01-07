@@ -18,6 +18,10 @@ export * from './components/sidebar';
 export * from './components/empty';
 export * from './components/breadcrumb';
 export * from './components/checkbox';
+export * from './components/label';
+export * from './components/toggle';
+export * from './components/toggle-group';
+export * from './components/table';
 
 // Hooks
 export * from './hooks/use-mobile';

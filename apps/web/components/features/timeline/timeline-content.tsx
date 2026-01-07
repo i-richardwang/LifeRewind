@@ -2,7 +2,12 @@
 
 import { format } from 'date-fns';
 import {
+  Badge,
   Separator,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
   Empty,
   EmptyHeader,
   EmptyMedia,
@@ -10,7 +15,7 @@ import {
   EmptyDescription,
 } from '@workspace/ui';
 import { Calendar } from 'lucide-react';
-import { TimelineItem } from './timeline-item';
+import { SourceIcon } from '@/components/source-icon';
 import type { CollectedItem } from '@/db/schema';
 
 interface TimelineContentProps {
@@ -58,26 +63,45 @@ export function TimelineContent({ items, currentDate }: TimelineContentProps) {
         </p>
       </div>
 
-      {/* Timeline - scrollable area that fills remaining space */}
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto lg:mt-4">
-        <div className="space-y-6 pb-8">
+      {/* Timeline Table */}
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+        <div className="space-y-4 pb-8">
           {hours.map((hour) => (
-            <div key={hour} className="relative">
+            <section key={hour}>
               {/* Hour marker */}
-              <div className="sticky top-0 z-10 mb-2 flex items-center gap-2 bg-background py-1">
-                <span className="text-sm font-medium text-muted-foreground">
+              <div className="sticky top-0 z-10 mb-2 flex items-center gap-3 bg-background/95 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <Badge variant="outline" className="font-mono text-xs">
                   {hour}
-                </span>
+                </Badge>
                 <Separator className="flex-1" />
               </div>
 
-              {/* Items */}
-              <div className="space-y-2 border-l pl-6">
-                {(itemsByHour[hour] ?? []).map((item) => (
-                  <TimelineItem key={item.id} item={item} />
-                ))}
+              {/* Items Table */}
+              <div className="rounded-md border">
+                <Table>
+                  <TableBody>
+                    {(itemsByHour[hour] ?? []).map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="w-12 text-muted-foreground">
+                          {format(new Date(item.timestamp), 'HH:mm')}
+                        </TableCell>
+                        <TableCell className="w-8">
+                          <SourceIcon source={item.sourceType} className="size-4" />
+                        </TableCell>
+                        <TableCell className="max-w-0 truncate font-medium">
+                          {item.title || 'Untitled'}
+                        </TableCell>
+                        <TableCell className="hidden w-20 md:table-cell">
+                          <Badge variant="secondary" className="text-xs">
+                            {item.sourceType}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            </div>
+            </section>
           ))}
         </div>
       </div>

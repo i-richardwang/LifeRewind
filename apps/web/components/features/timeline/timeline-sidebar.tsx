@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { Calendar, Separator, Checkbox, ScrollArea } from '@workspace/ui';
+import { Calendar, Separator, Checkbox, Label, ScrollArea } from '@workspace/ui';
 import { useCalendarDates } from '@/hooks';
 import type { SourceType } from '@/db/schema';
 
@@ -103,32 +103,31 @@ export function TimelineSidebar({
 
           <Separator className="my-2" />
 
-          <div className="p-2">
-            <div className="text-sidebar-foreground/70 mb-2 px-2 text-xs font-medium">
+          <div className="p-4">
+            <p className="mb-3 text-xs font-medium text-muted-foreground">
               Filter by Source
-            </div>
-            <div className="space-y-3 px-2">
+            </p>
+            <div className="space-y-3">
               {SOURCE_OPTIONS.map((option) => (
-                <label
-                  key={option.value}
-                  className="flex cursor-pointer items-center gap-2 text-sm"
-                >
+                <div key={option.value} className="flex items-center gap-2">
                   <Checkbox
+                    id={`source-${option.value}`}
                     checked={isSourceSelected(option.value)}
                     onCheckedChange={(checked) =>
                       handleSourceToggle(option.value, checked === true)
                     }
                   />
-                  <span
+                  <Label
+                    htmlFor={`source-${option.value}`}
                     className={
                       isSourceSelected(option.value)
-                        ? ''
-                        : 'text-muted-foreground'
+                        ? 'cursor-pointer'
+                        : 'cursor-pointer text-muted-foreground'
                     }
                   >
                     {option.label}
-                  </span>
-                </label>
+                  </Label>
+                </div>
               ))}
             </div>
           </div>
