@@ -96,14 +96,14 @@ export function EmptySummaryCard({
   // No data state
   if (!hasData) {
     return (
-      <Card className="border-dashed">
+      <Card className="flex flex-col border-dashed">
         <CardHeader className="pb-3">
           <CardDescription className="flex items-center gap-1.5">
             <Calendar className="size-3.5" />
             {periodLabel}: {dateRange}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center py-8">
+        <CardContent className="flex flex-1 flex-col items-center justify-center py-8">
           <Ban className="mb-3 size-8 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
             No data collected for this {period}
@@ -116,14 +116,14 @@ export function EmptySummaryCard({
   // Failed state
   if (isFailed) {
     return (
-      <Card className="border-destructive/50">
+      <Card className="flex flex-col border-destructive/50">
         <CardHeader className="pb-3">
           <CardDescription className="flex items-center gap-1.5">
             <Calendar className="size-3.5" />
             {periodLabel}: {dateRange}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center py-8">
+        <CardContent className="flex flex-1 flex-col items-center justify-center py-8">
           <AlertCircle className="mb-3 size-8 text-destructive/50" />
           <p className="mb-1 text-sm font-medium text-destructive">
             Generation failed
@@ -153,14 +153,14 @@ export function EmptySummaryCard({
 
   // Empty/Loading state - ready to generate or generating
   return (
-    <Card className="border-dashed">
+    <Card className="flex flex-col border-dashed">
       <CardHeader className="pb-3">
         <CardDescription className="flex items-center gap-1.5">
           <Calendar className="size-3.5" />
           {periodLabel}: {dateRange}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col items-center justify-center py-8">
+      <CardContent className="flex flex-1 flex-col items-center justify-center py-8">
         <Sparkles className="mb-3 size-8 text-muted-foreground/50" />
         <p className="mb-4 text-sm text-muted-foreground">
           No summary generated yet

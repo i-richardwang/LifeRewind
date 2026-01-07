@@ -22,7 +22,7 @@ export function SummaryCard({ summary }: SummaryCardProps) {
   const dateRange = `${format(new Date(summary.periodStart), 'MMM d')} - ${format(new Date(summary.periodEnd), 'MMM d, yyyy')}`;
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card flex flex-col">
       <CardHeader>
         <CardDescription className="flex items-center gap-1.5">
           <Calendar className="size-3.5" />
@@ -34,7 +34,7 @@ export function SummaryCard({ summary }: SummaryCardProps) {
         </CardAction>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="flex-1 space-y-4">
         {/* Main content */}
         <div className="prose prose-sm dark:prose-invert max-w-none">
           <ReactMarkdown>{summary.content}</ReactMarkdown>

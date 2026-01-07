@@ -181,8 +181,8 @@ async function SummaryListWithData({
 // Skeleton for SummaryList
 function SummaryListSkeleton() {
   return (
-    <div className="space-y-4">
-      {[1, 2, 3].map((i) => (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {[1, 2, 3, 4].map((i) => (
         <Card key={i}>
           <CardContent className="p-6">
             <div className="space-y-3">

@@ -1,8 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@workspace/ui';
-import { cn } from '@workspace/ui/lib/utils';
+import { Tabs, TabsList, TabsTrigger } from '@workspace/ui';
 import type { SummaryPeriod } from '@/db/schema';
 
 interface PeriodViewToggleProps {
@@ -13,7 +12,8 @@ export function PeriodViewToggle({ currentPeriod }: PeriodViewToggleProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const handleChange = (period: SummaryPeriod | 'all') => {
+  const handleChange = (value: string) => {
+    const period = value as SummaryPeriod | 'all';
     const params = new URLSearchParams(searchParams.toString());
     if (period === 'all') {
       params.delete('period');
@@ -23,29 +23,13 @@ export function PeriodViewToggle({ currentPeriod }: PeriodViewToggleProps) {
     router.push(`/?${params.toString()}`);
   };
 
-  const options: { value: SummaryPeriod | 'all'; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'week', label: 'Weekly' },
-    { value: 'month', label: 'Monthly' },
-  ];
-
   return (
-    <div className="inline-flex items-center rounded-lg border bg-muted p-1">
-      {options.map((option) => (
-        <Button
-          key={option.value}
-          variant="ghost"
-          size="sm"
-          className={cn(
-            'h-7 rounded-md px-3 text-xs',
-            currentPeriod === option.value &&
-              'bg-background shadow-sm hover:bg-background'
-          )}
-          onClick={() => handleChange(option.value)}
-        >
-          {option.label}
-        </Button>
-      ))}
-    </div>
+    <Tabs value={currentPeriod} onValueChange={handleChange}>
+      <TabsList>
+        <TabsTrigger value="all">All</TabsTrigger>
+        <TabsTrigger value="week">Weekly</TabsTrigger>
+        <TabsTrigger value="month">Monthly</TabsTrigger>
+      </TabsList>
+    </Tabs>
   );
 }
