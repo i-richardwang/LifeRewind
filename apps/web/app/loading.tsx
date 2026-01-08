@@ -28,10 +28,10 @@ export default function Loading() {
             </div>
 
             {/* Summary cards skeleton */}
-            <div className="space-y-4 px-4 lg:px-6">
-              {[1, 2, 3].map((i) => (
-                <Card key={i}>
-                  <CardContent className="p-6">
+            <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i} className="flex flex-col">
+                  <CardContent className="flex-1 p-6">
                     <div className="space-y-3">
                       <Skeleton className="h-4 w-24" />
                       <Skeleton className="h-6 w-48" />
