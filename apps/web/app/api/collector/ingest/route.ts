@@ -61,7 +61,7 @@ const chatbotMessageSchema = z.object({
 });
 
 const chatbotSchema = z.object({
-  client: z.literal('chatwise'),
+  client: z.enum(['chatwise', 'chatgpt']),
   session: z.object({
     id: z.string(),
     title: z.string(),

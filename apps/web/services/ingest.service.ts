@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { insertItems, upsertFilesystemItems } from '@/db/queries/items';
 import { createCollectionLog } from '@/db/queries/logs';
-import type { NewCollectedItem, SourceType } from '@/db/schema';
+import type { NewCollectedItem, SourceType, ChatbotClient } from '@/db/schema';
 import { GLOBAL_DEVICE_ID } from '@/db/schema';
 
 function sha256(input: string): string {
@@ -59,7 +59,7 @@ export interface ChatbotMessagePayload {
 }
 
 export interface ChatbotPayload {
-  client: 'chatwise';
+  client: ChatbotClient;
   session: {
     id: string;
     title: string;

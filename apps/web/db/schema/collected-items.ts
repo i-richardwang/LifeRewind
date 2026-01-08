@@ -60,8 +60,10 @@ export interface ChatbotMessage {
   reasoningContent?: string;
 }
 
+export type ChatbotClient = 'chatwise' | 'chatgpt';
+
 export interface ChatbotData {
-  client: 'chatwise';
+  client: ChatbotClient;
   sessionId: string;
   sessionTitle: string;
   model?: string;

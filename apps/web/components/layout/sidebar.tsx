@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Clock, BarChart3, Settings, Sparkles } from 'lucide-react';
+import { Home, Clock, BarChart3, Settings, Sparkles, Upload } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,7 @@ const navItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/timeline', label: 'Timeline', icon: Clock },
   { href: '/stats', label: 'Stats', icon: BarChart3 },
+  { href: '/import', label: 'Import', icon: Upload },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
