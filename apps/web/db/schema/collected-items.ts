@@ -9,7 +9,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot';
+export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot' | 'email';
 
 export interface GitData {
   hash: string;
@@ -70,7 +70,29 @@ export interface ChatbotData {
   messages: ChatbotMessage[];
 }
 
-export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData;
+export interface EmailAddress {
+  name?: string;
+  email: string;
+}
+
+export type EmailProvider = 'gmail';
+
+export interface EmailData {
+  provider: EmailProvider;
+  messageId: string;
+  threadId: string;
+  labels: string[];
+  from: EmailAddress;
+  to: EmailAddress[];
+  cc?: EmailAddress[];
+  snippet: string;
+  hasAttachments: boolean;
+  attachmentCount?: number;
+  isRead: boolean;
+  isStarred: boolean;
+}
+
+export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData | EmailData;
 
 // Special device ID for globally unique data sources (e.g., git commits)
 export const GLOBAL_DEVICE_ID = 'global';

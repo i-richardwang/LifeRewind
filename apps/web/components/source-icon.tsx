@@ -1,26 +1,29 @@
-import { GitCommit, Globe, FileText, MessageSquare } from 'lucide-react';
+import { GitCommit, Globe, FileText, MessageSquare, Mail } from 'lucide-react';
 import { cn } from '@workspace/ui/lib/utils';
 import type { SourceType } from '@/db/schema';
 
-const iconMap = {
+const iconMap: Record<SourceType, typeof GitCommit> = {
   git: GitCommit,
   browser: Globe,
   filesystem: FileText,
   chatbot: MessageSquare,
+  email: Mail,
 };
 
-const colorMap = {
+const colorMap: Record<SourceType, string> = {
   git: 'text-[var(--chart-1)]',
   browser: 'text-[var(--chart-2)]',
   filesystem: 'text-[var(--chart-3)]',
   chatbot: 'text-[var(--chart-4)]',
+  email: 'text-[var(--chart-5)]',
 };
 
-const labelMap = {
+const labelMap: Record<SourceType, string> = {
   git: 'Git',
   browser: 'Browser',
   filesystem: 'Files',
   chatbot: 'Chat',
+  email: 'Email',
 };
 
 interface SourceIconProps {

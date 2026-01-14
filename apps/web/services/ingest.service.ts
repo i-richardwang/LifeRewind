@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { insertItems, upsertFilesystemItems } from '@/db/queries/items';
 import { createCollectionLog } from '@/db/queries/logs';
-import type { NewCollectedItem, SourceType, ChatbotClient } from '@/db/schema';
+import type { NewCollectedItem, SourceType, ChatbotClient, EmailAddress, EmailProvider } from '@/db/schema';
 import { GLOBAL_DEVICE_ID } from '@/db/schema';
 
 function sha256(input: string): string {
@@ -71,10 +71,26 @@ export interface ChatbotPayload {
   messages: ChatbotMessagePayload[];
 }
 
+export interface EmailPayload {
+  provider: EmailProvider;
+  messageId: string;
+  threadId: string;
+  labels: string[];
+  from: EmailAddress;
+  to: EmailAddress[];
+  cc?: EmailAddress[];
+  subject: string;
+  snippet: string;
+  hasAttachments: boolean;
+  attachmentCount?: number;
+  isRead: boolean;
+  isStarred: boolean;
+}
+
 export interface CollectedItemPayload {
   sourceType: SourceType;
   timestamp: string;
-  data: GitCommitPayload | BrowserHistoryPayload | FilesystemPayload | ChatbotPayload;
+  data: GitCommitPayload | BrowserHistoryPayload | FilesystemPayload | ChatbotPayload | EmailPayload;
 }
 
 export interface IngestParams {
@@ -110,6 +126,9 @@ export async function ingestItems(params: IngestParams): Promise<IngestResult> {
     } else if (sourceType === 'browser' || sourceType === 'chatbot') {
       // Browser and chatbot use standard upsert (update on conflict)
       results = await insertItems(transformedItems, 'update');
+    } else if (sourceType === 'email') {
+      // Email uses ignore (skip on conflict, emails don't change)
+      results = await insertItems(transformedItems, 'ignore');
     } else {
       // Git uses ignore (skip on conflict)
       results = await insertItems(transformedItems, 'ignore');
@@ -146,6 +165,8 @@ function transformItem(
       return transformFilesystemItem(item, collectedAt, deviceId, deviceName);
     case 'chatbot':
       return transformChatbotItem(item, collectedAt, deviceId, deviceName);
+    case 'email':
+      return transformEmailItem(item, collectedAt, deviceId, deviceName);
   }
 }
 
@@ -271,6 +292,40 @@ function transformChatbotItem(
         files: msg.files,
         reasoningContent: msg.reasoningContent,
       })),
+    },
+    collectedAt,
+  };
+}
+
+function transformEmailItem(
+  item: CollectedItemPayload,
+  collectedAt: Date,
+  deviceId: string,
+  deviceName?: string
+): NewCollectedItem {
+  const data = item.data as EmailPayload;
+
+  return {
+    sourceType: 'email',
+    deviceId,
+    deviceName,
+    sourceKey: `${data.provider}:${data.messageId}`,
+    timestamp: new Date(item.timestamp),
+    title: data.subject,
+    url: null,
+    data: {
+      provider: data.provider,
+      messageId: data.messageId,
+      threadId: data.threadId,
+      labels: data.labels,
+      from: data.from,
+      to: data.to,
+      cc: data.cc,
+      snippet: data.snippet,
+      hasAttachments: data.hasAttachments,
+      attachmentCount: data.attachmentCount,
+      isRead: data.isRead,
+      isStarred: data.isStarred,
     },
     collectedAt,
   };

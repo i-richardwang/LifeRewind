@@ -6,11 +6,13 @@ import type {
   BrowserData,
   FilesystemData,
   ChatbotData,
+  EmailData,
 } from '@/db/schema';
 import { GitDetail } from './git-detail';
 import { BrowserDetail } from './browser-detail';
 import { FilesystemDetail } from './filesystem-detail';
 import { ChatbotDetail } from './chatbot-detail';
+import { EmailDetail } from './email-detail';
 
 interface ItemDetailContentProps {
   item: CollectedItem;
@@ -34,6 +36,8 @@ export function ItemDetailContent({ item }: ItemDetailContentProps) {
       return <FilesystemDetail data={data as FilesystemData} timestamp={timestamp} />;
     case 'chatbot':
       return <ChatbotDetail data={data as ChatbotData} />;
+    case 'email':
+      return <EmailDetail data={data as EmailData} timestamp={timestamp} />;
     default:
       return (
         <div className="text-sm text-muted-foreground">
