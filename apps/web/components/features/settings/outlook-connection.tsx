@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Mail, RefreshCw, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, RefreshCw, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -13,14 +13,14 @@ import {
 } from '@workspace/ui';
 import { formatDistanceToNow } from 'date-fns';
 
-interface GmailStatus {
+interface OutlookStatus {
   connected: boolean;
   email?: string;
   lastSyncAt?: string;
 }
 
-export function GmailConnection() {
-  const [status, setStatus] = useState<GmailStatus | null>(null);
+export function OutlookConnection() {
+  const [status, setStatus] = useState<OutlookStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{
@@ -31,7 +31,7 @@ export function GmailConnection() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('/api/email/status');
+      const res = await fetch('/api/calendar/status');
       const data = await res.json();
       setStatus(data);
     } catch {
@@ -46,7 +46,7 @@ export function GmailConnection() {
   }, []);
 
   const handleConnect = () => {
-    window.location.href = '/api/auth/gmail';
+    window.location.href = '/api/auth/outlook';
   };
 
   const handleSync = async () => {
@@ -54,11 +54,11 @@ export function GmailConnection() {
     setSyncResult(null);
 
     try {
-      const res = await fetch('/api/email/sync', { method: 'POST' });
+      const res = await fetch('/api/calendar/sync', { method: 'POST' });
       const data = await res.json();
 
       if (res.ok) {
-        setSyncResult({ success: true, count: data.emailsImported });
+        setSyncResult({ success: true, count: data.eventsImported });
         fetchStatus();
       } else {
         setSyncResult({ success: false, error: data.error });
@@ -75,8 +75,8 @@ export function GmailConnection() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Mail className="size-5" />
-            Gmail
+            <Calendar className="size-5" />
+            Outlook Calendar
           </CardTitle>
           <CardDescription>Loading...</CardDescription>
         </CardHeader>
@@ -88,11 +88,11 @@ export function GmailConnection() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Mail className="size-5" />
-          Gmail
+          <Calendar className="size-5" />
+          Outlook Calendar
         </CardTitle>
         <CardDescription>
-          Sync your Gmail emails to track your communication
+          Sync your Outlook calendar events to track your schedule
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -117,7 +117,7 @@ function ConnectedState({
   syncResult,
   onSync,
 }: {
-  status: GmailStatus;
+  status: OutlookStatus;
   syncing: boolean;
   syncResult: { success: boolean; count?: number; error?: string } | null;
   onSync: () => void;
@@ -150,7 +150,7 @@ function ConnectedState({
           }`}
         >
           {syncResult.success
-            ? `Synced ${syncResult.count} new emails`
+            ? `Synced ${syncResult.count} calendar events`
             : syncResult.error}
         </div>
       )}
@@ -182,7 +182,7 @@ function DisconnectedState({ onConnect }: { onConnect: () => void }) {
 
       <Button onClick={onConnect} className="w-full">
         <ExternalLink className="mr-2 size-4" />
-        Connect Gmail
+        Connect Outlook
       </Button>
     </>
   );

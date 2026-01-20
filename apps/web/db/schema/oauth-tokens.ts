@@ -7,7 +7,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export type OAuthProvider = 'gmail';
+export type OAuthProvider = 'gmail' | 'outlook' | 'exchange';
 
 export const oauthTokens = pgTable(
   'oauth_tokens',

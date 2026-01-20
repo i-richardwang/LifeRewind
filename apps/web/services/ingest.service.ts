@@ -1,7 +1,15 @@
 import { createHash } from 'crypto';
 import { insertItems, upsertFilesystemItems } from '@/db/queries/items';
 import { createCollectionLog } from '@/db/queries/logs';
-import type { NewCollectedItem, SourceType, ChatbotClient, EmailAddress, EmailProvider } from '@/db/schema';
+import type {
+  NewCollectedItem,
+  SourceType,
+  ChatbotClient,
+  EmailAddress,
+  EmailProvider,
+  CalendarProvider,
+  CalendarAttendee,
+} from '@/db/schema';
 import { GLOBAL_DEVICE_ID } from '@/db/schema';
 
 function sha256(input: string): string {
@@ -87,10 +95,47 @@ export interface EmailPayload {
   isStarred: boolean;
 }
 
+export interface CalendarPayload {
+  provider: CalendarProvider;
+  eventId: string;
+  iCalUId: string;
+  subject: string;
+  calendarId: string;
+  calendarName: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  isAllDay: boolean;
+  organizer: { name?: string; email: string };
+  attendees: CalendarAttendee[];
+  isOrganizer: boolean;
+  status: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere';
+  responseStatus: 'none' | 'organizer' | 'accepted' | 'declined' | 'tentative';
+  isCancelled: boolean;
+  bodyPreview?: string;
+  location?: string;
+  categories: string[];
+  importance: 'low' | 'normal' | 'high';
+  sensitivity: 'normal' | 'personal' | 'private' | 'confidential';
+  isOnlineMeeting: boolean;
+  onlineMeetingProvider?: string;
+  onlineMeetingUrl?: string;
+  type: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  seriesMasterId?: string;
+  webLink: string;
+  hasAttachments: boolean;
+  lastModifiedDateTime: string;
+}
+
 export interface CollectedItemPayload {
   sourceType: SourceType;
   timestamp: string;
-  data: GitCommitPayload | BrowserHistoryPayload | FilesystemPayload | ChatbotPayload | EmailPayload;
+  data:
+    | GitCommitPayload
+    | BrowserHistoryPayload
+    | FilesystemPayload
+    | ChatbotPayload
+    | EmailPayload
+    | CalendarPayload;
 }
 
 export interface IngestParams {
@@ -129,6 +174,9 @@ export async function ingestItems(params: IngestParams): Promise<IngestResult> {
     } else if (sourceType === 'email') {
       // Email uses ignore (skip on conflict, emails don't change)
       results = await insertItems(transformedItems, 'ignore');
+    } else if (sourceType === 'calendar') {
+      // Calendar uses update (events can be modified/cancelled)
+      results = await insertItems(transformedItems, 'update');
     } else {
       // Git uses ignore (skip on conflict)
       results = await insertItems(transformedItems, 'ignore');
@@ -167,6 +215,8 @@ function transformItem(
       return transformChatbotItem(item, collectedAt, deviceId, deviceName);
     case 'email':
       return transformEmailItem(item, collectedAt, deviceId, deviceName);
+    case 'calendar':
+      return transformCalendarItem(item, collectedAt, deviceId, deviceName);
   }
 }
 
@@ -326,6 +376,61 @@ function transformEmailItem(
       attachmentCount: data.attachmentCount,
       isRead: data.isRead,
       isStarred: data.isStarred,
+    },
+    collectedAt,
+  };
+}
+
+function transformCalendarItem(
+  item: CollectedItemPayload,
+  collectedAt: Date,
+  deviceId: string,
+  deviceName?: string
+): NewCollectedItem {
+  const data = item.data as CalendarPayload;
+
+  // Use eventId instead of iCalUId for sourceKey
+  // iCalUId is the same for all instances of a recurring event
+  // eventId is unique per instance
+  const hashedId = sha256(data.eventId).substring(0, 32);
+
+  return {
+    sourceType: 'calendar',
+    deviceId,
+    deviceName,
+    sourceKey: `${data.provider}:${hashedId}`,
+    timestamp: new Date(item.timestamp),
+    title: data.isCancelled ? `[Cancelled] ${data.subject}` : (data.subject || 'Untitled Event'),
+    url: data.webLink || null,
+    data: {
+      provider: data.provider,
+      eventId: data.eventId,
+      iCalUId: data.iCalUId,
+      subject: data.subject,
+      calendarId: data.calendarId,
+      calendarName: data.calendarName,
+      start: data.start,
+      end: data.end,
+      isAllDay: data.isAllDay,
+      organizer: data.organizer,
+      attendees: data.attendees,
+      isOrganizer: data.isOrganizer,
+      status: data.status,
+      responseStatus: data.responseStatus,
+      isCancelled: data.isCancelled,
+      bodyPreview: data.bodyPreview,
+      location: data.location,
+      categories: data.categories,
+      importance: data.importance,
+      sensitivity: data.sensitivity,
+      isOnlineMeeting: data.isOnlineMeeting,
+      onlineMeetingProvider: data.onlineMeetingProvider,
+      onlineMeetingUrl: data.onlineMeetingUrl,
+      type: data.type,
+      seriesMasterId: data.seriesMasterId,
+      webLink: data.webLink,
+      hasAttachments: data.hasAttachments,
+      lastModifiedDateTime: data.lastModifiedDateTime,
     },
     collectedAt,
   };

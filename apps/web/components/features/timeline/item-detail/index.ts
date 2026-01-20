@@ -5,3 +5,4 @@ export { BrowserDetail } from './browser-detail';
 export { FilesystemDetail } from './filesystem-detail';
 export { ChatbotDetail } from './chatbot-detail';
 export { EmailDetail } from './email-detail';
+export { CalendarDetail } from './calendar-detail';

@@ -18,7 +18,6 @@ export interface EmailConnectionStatus {
   connected: boolean;
   email?: string;
   lastSyncAt?: Date;
-  emailCount?: number;
 }
 
 /**
@@ -96,7 +95,7 @@ export async function syncEmails(): Promise<EmailSyncResult> {
 
     // Fetch emails (incremental sync if we have lastSyncAt)
     const syncOptions = token.lastSyncAt
-      ? { after: token.lastSyncAt, maxResults: 100 }
+      ? { since: token.lastSyncAt, maxResults: 100 }
       : { maxResults: 100 };
 
     const messages = await fetchGmailMessages(oauth2Client, syncOptions);

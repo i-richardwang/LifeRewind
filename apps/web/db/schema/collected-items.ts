@@ -9,7 +9,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot' | 'email';
+export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot' | 'email' | 'calendar';
 
 export interface GitData {
   hash: string;
@@ -92,7 +92,47 @@ export interface EmailData {
   isStarred: boolean;
 }
 
-export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData | EmailData;
+export interface CalendarAttendee {
+  name?: string;
+  email: string;
+  type: 'required' | 'optional' | 'resource';
+  status: 'none' | 'accepted' | 'declined' | 'tentative';
+}
+
+export type CalendarProvider = 'outlook' | 'exchange';
+
+export interface CalendarData {
+  provider: CalendarProvider;
+  eventId: string;
+  iCalUId: string;
+  subject: string;
+  calendarId: string;
+  calendarName: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  isAllDay: boolean;
+  organizer: { name?: string; email: string };
+  attendees: CalendarAttendee[];
+  isOrganizer: boolean;
+  status: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere';
+  responseStatus: 'none' | 'organizer' | 'accepted' | 'declined' | 'tentative';
+  isCancelled: boolean;
+  bodyPreview?: string;
+  location?: string;
+  categories: string[];
+  importance: 'low' | 'normal' | 'high';
+  sensitivity: 'normal' | 'personal' | 'private' | 'confidential';
+  isOnlineMeeting: boolean;
+  onlineMeetingProvider?: string;
+  onlineMeetingUrl?: string;
+  type: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  seriesMasterId?: string;
+  webLink: string;
+  hasAttachments: boolean;
+  lastModifiedDateTime: string;
+}
+
+export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData | EmailData | CalendarData;
 
 // Special device ID for globally unique data sources (e.g., git commits)
 export const GLOBAL_DEVICE_ID = 'global';

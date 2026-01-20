@@ -3,7 +3,7 @@ import type { CollectedItemPayload } from '@/services/ingest.service';
 import { transformGmailMessage } from './transform';
 
 export interface SyncOptions {
-  after?: Date;
+  since?: Date;
   maxResults?: number;
 }
 
@@ -18,8 +18,8 @@ export async function fetchGmailMessages(
 
   // Build query string
   const queryParts: string[] = [];
-  if (options.after) {
-    const timestamp = Math.floor(options.after.getTime() / 1000);
+  if (options.since) {
+    const timestamp = Math.floor(options.since.getTime() / 1000);
     queryParts.push(`after:${timestamp}`);
   }
 

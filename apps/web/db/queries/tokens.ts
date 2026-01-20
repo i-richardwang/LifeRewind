@@ -59,11 +59,22 @@ export async function updateTokens(
   provider: OAuthProvider,
   email: string,
   accessToken: string,
-  expiresAt: Date
+  expiresAt: Date,
+  refreshToken?: string
 ): Promise<void> {
+  const updateData: Record<string, unknown> = {
+    accessToken,
+    expiresAt,
+    updatedAt: new Date(),
+  };
+
+  if (refreshToken) {
+    updateData.refreshToken = refreshToken;
+  }
+
   await db
     .update(oauthTokens)
-    .set({ accessToken, expiresAt, updatedAt: new Date() })
+    .set(updateData)
     .where(and(eq(oauthTokens.provider, provider), eq(oauthTokens.email, email)));
 }
 
