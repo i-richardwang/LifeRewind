@@ -11,6 +11,7 @@ import type {
   CalendarAttendee,
 } from '@/db/schema';
 import { GLOBAL_DEVICE_ID } from '@/db/schema';
+import { normalizeUrl, shouldSkipUrl } from '@/lib/url-utils';
 
 function sha256(input: string): string {
   return createHash('sha256').update(input).digest('hex');
@@ -157,7 +158,16 @@ export interface IngestResult {
 export async function ingestItems(params: IngestParams): Promise<IngestResult> {
   const { deviceId, deviceName, sourceType, collectedAt, items } = params;
 
-  const transformedItems = items.map((item) =>
+  // Filter out URLs that should be skipped (for browser data)
+  const filteredItems =
+    sourceType === 'browser'
+      ? items.filter((item) => {
+          const data = item.data as BrowserHistoryPayload;
+          return !shouldSkipUrl(data.url);
+        })
+      : items;
+
+  const transformedItems = filteredItems.map((item) =>
     transformItem(item, collectedAt, deviceId, deviceName)
   );
 
@@ -254,14 +264,18 @@ function transformBrowserItem(
 ): NewCollectedItem {
   const data = item.data as BrowserHistoryPayload;
 
+  // Normalize URL to deduplicate tracking params, session IDs, etc.
+  // while preserving meaningful params like search engine queries and pagination
+  const normalizedUrl = normalizeUrl(data.url);
+
   return {
     sourceType: 'browser',
     deviceId,
     deviceName,
-    sourceKey: sha256(`${data.url}|${data.browser}|${data.date}`),
+    sourceKey: sha256(`${normalizedUrl}|${data.browser}|${data.date}`),
     timestamp: new Date(data.lastVisitTime),
     title: data.title,
-    url: data.url,
+    url: data.url, // Keep original URL for display
     data: {
       browser: data.browser,
       profiles: data.profiles,
