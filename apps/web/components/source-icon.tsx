@@ -1,4 +1,4 @@
-import { GitCommit, Globe, FileText, MessageSquare, Mail, Calendar } from 'lucide-react';
+import { GitCommit, Globe, FileText, MessageSquare, Mail, Calendar, CheckSquare } from 'lucide-react';
 import { cn } from '@workspace/ui/lib/utils';
 import type { SourceType } from '@/db/schema';
 
@@ -9,6 +9,7 @@ const iconMap: Record<SourceType, typeof GitCommit> = {
   chatbot: MessageSquare,
   email: Mail,
   calendar: Calendar,
+  todoist: CheckSquare,
 };
 
 const colorMap: Record<SourceType, string> = {
@@ -18,6 +19,7 @@ const colorMap: Record<SourceType, string> = {
   chatbot: 'text-[var(--chart-4)]',
   email: 'text-[var(--chart-5)]',
   calendar: 'text-[var(--chart-1)]',
+  todoist: 'text-[var(--chart-2)]',
 };
 
 const labelMap: Record<SourceType, string> = {
@@ -27,6 +29,7 @@ const labelMap: Record<SourceType, string> = {
   chatbot: 'Chat',
   email: 'Email',
   calendar: 'Calendar',
+  todoist: 'Todoist',
 };
 
 interface SourceIconProps {

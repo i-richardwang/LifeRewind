@@ -66,7 +66,7 @@ export function EmptySummaryCard({
       });
 
     return () => stopPolling();
-  }, [existingSummary?.id, isPending, startPolling, stopPolling, router]);
+  }, [existingSummary, isPending, startPolling, stopPolling, router]);
 
   const handleGenerate = async () => {
     setIsSubmitting(true);

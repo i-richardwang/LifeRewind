@@ -9,6 +9,7 @@ import type {
   EmailProvider,
   CalendarProvider,
   CalendarAttendee,
+  TodoistDue,
 } from '@/db/schema';
 import { GLOBAL_DEVICE_ID } from '@/db/schema';
 import { normalizeUrl, shouldSkipUrl } from '@/lib/url-utils';
@@ -127,6 +128,22 @@ export interface CalendarPayload {
   lastModifiedDateTime: string;
 }
 
+export interface TodoistPayload {
+  taskId: string;
+  projectId: string;
+  projectName: string;
+  sectionId?: string;
+  content: string;
+  description?: string;
+  priority: 1 | 2 | 3 | 4;
+  labels: string[];
+  due?: TodoistDue;
+  isCompleted: boolean;
+  completedAt?: string;
+  createdAt: string;
+  url: string;
+}
+
 export interface CollectedItemPayload {
   sourceType: SourceType;
   timestamp: string;
@@ -136,7 +153,8 @@ export interface CollectedItemPayload {
     | FilesystemPayload
     | ChatbotPayload
     | EmailPayload
-    | CalendarPayload;
+    | CalendarPayload
+    | TodoistPayload;
 }
 
 export interface IngestParams {
@@ -187,6 +205,9 @@ export async function ingestItems(params: IngestParams): Promise<IngestResult> {
     } else if (sourceType === 'calendar') {
       // Calendar uses update (events can be modified/cancelled)
       results = await insertItems(transformedItems, 'update');
+    } else if (sourceType === 'todoist') {
+      // Todoist uses update (tasks can be completed/modified)
+      results = await insertItems(transformedItems, 'update');
     } else {
       // Git uses ignore (skip on conflict)
       results = await insertItems(transformedItems, 'ignore');
@@ -227,6 +248,8 @@ function transformItem(
       return transformEmailItem(item, collectedAt, deviceId, deviceName);
     case 'calendar':
       return transformCalendarItem(item, collectedAt, deviceId, deviceName);
+    case 'todoist':
+      return transformTodoistItem(item, collectedAt, deviceId, deviceName);
   }
 }
 
@@ -445,6 +468,50 @@ function transformCalendarItem(
       webLink: data.webLink,
       hasAttachments: data.hasAttachments,
       lastModifiedDateTime: data.lastModifiedDateTime,
+    },
+    collectedAt,
+  };
+}
+
+function transformTodoistItem(
+  item: CollectedItemPayload,
+  collectedAt: Date,
+  deviceId: string,
+  deviceName?: string
+): NewCollectedItem {
+  const data = item.data as TodoistPayload;
+
+  // For completed tasks, use taskId + completion timestamp to track each completion
+  // For active tasks, use taskId + "active" to track current state
+  // Use compact timestamp format (epoch seconds) to keep sourceKey under 64 chars
+  let sourceKeySuffix = ':active';
+  if (data.isCompleted && data.completedAt) {
+    const completedTs = Math.floor(new Date(data.completedAt).getTime() / 1000);
+    sourceKeySuffix = `:done:${completedTs}`;
+  }
+
+  return {
+    sourceType: 'todoist',
+    deviceId,
+    deviceName,
+    sourceKey: `todoist:${data.taskId}${sourceKeySuffix}`,
+    timestamp: new Date(data.completedAt || data.createdAt),
+    title: data.content,
+    url: data.url,
+    data: {
+      taskId: data.taskId,
+      projectId: data.projectId,
+      projectName: data.projectName,
+      sectionId: data.sectionId,
+      content: data.content,
+      description: data.description,
+      priority: data.priority,
+      labels: data.labels,
+      due: data.due,
+      isCompleted: data.isCompleted,
+      completedAt: data.completedAt,
+      createdAt: data.createdAt,
+      url: data.url,
     },
     collectedAt,
   };

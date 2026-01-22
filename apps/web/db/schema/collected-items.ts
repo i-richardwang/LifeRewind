@@ -9,7 +9,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot' | 'email' | 'calendar';
+export type SourceType = 'git' | 'browser' | 'filesystem' | 'chatbot' | 'email' | 'calendar' | 'todoist';
 
 export interface GitData {
   hash: string;
@@ -132,7 +132,31 @@ export interface CalendarData {
   lastModifiedDateTime: string;
 }
 
-export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData | EmailData | CalendarData;
+export interface TodoistDue {
+  date: string;
+  isRecurring: boolean;
+  datetime?: string;
+  timezone?: string;
+  string?: string;
+}
+
+export interface TodoistData {
+  taskId: string;
+  projectId: string;
+  projectName: string;
+  sectionId?: string;
+  content: string;
+  description?: string;
+  priority: 1 | 2 | 3 | 4;
+  labels: string[];
+  due?: TodoistDue;
+  isCompleted: boolean;
+  completedAt?: string;
+  createdAt: string;
+  url: string;
+}
+
+export type CollectedItemData = GitData | BrowserData | FilesystemData | ChatbotData | EmailData | CalendarData | TodoistData;
 
 // Special device ID for globally unique data sources (e.g., git commits)
 export const GLOBAL_DEVICE_ID = 'global';

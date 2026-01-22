@@ -9,7 +9,7 @@ import {
 } from '@workspace/ui';
 import { CheckCircle, XCircle, Database, Key, Bot } from 'lucide-react';
 import { db } from '@/db';
-import { GmailConnection, OutlookConnection, ExchangeConnection } from '@/components/features/settings';
+import { GmailConnection, OutlookConnection, ExchangeConnection, TodoistConnection } from '@/components/features/settings';
 
 export const metadata: Metadata = {
   title: 'Settings',
@@ -71,6 +71,7 @@ export default async function SettingsPage() {
               <GmailConnection />
               <OutlookConnection />
               <ExchangeConnection />
+              <TodoistConnection />
 
               {/* LLM Configuration */}
               <Card>

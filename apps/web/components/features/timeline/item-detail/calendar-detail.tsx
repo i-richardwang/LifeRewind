@@ -7,7 +7,6 @@ import {
   Users,
   Video,
   ExternalLink,
-  Paperclip,
   XCircle,
 } from 'lucide-react';
 import { Badge, Label, Separator, Button } from '@workspace/ui';
@@ -34,7 +33,7 @@ const responseColors: Record<string, 'default' | 'secondary' | 'destructive' | '
   organizer: 'default',
 };
 
-export function CalendarDetail({ data, timestamp }: CalendarDetailProps) {
+export function CalendarDetail({ data, timestamp: _timestamp }: CalendarDetailProps) {
   const startDate = new Date(data.start.dateTime);
   const endDate = new Date(data.end.dateTime);
 

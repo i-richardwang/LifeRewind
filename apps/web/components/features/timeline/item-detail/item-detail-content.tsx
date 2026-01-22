@@ -8,6 +8,7 @@ import type {
   ChatbotData,
   EmailData,
   CalendarData,
+  TodoistData,
 } from '@/db/schema';
 import { GitDetail } from './git-detail';
 import { BrowserDetail } from './browser-detail';
@@ -15,6 +16,7 @@ import { FilesystemDetail } from './filesystem-detail';
 import { ChatbotDetail } from './chatbot-detail';
 import { EmailDetail } from './email-detail';
 import { CalendarDetail } from './calendar-detail';
+import { TodoistDetail } from './todoist-detail';
 
 interface ItemDetailContentProps {
   item: CollectedItem;
@@ -42,6 +44,8 @@ export function ItemDetailContent({ item }: ItemDetailContentProps) {
       return <EmailDetail data={data as EmailData} timestamp={timestamp} />;
     case 'calendar':
       return <CalendarDetail data={data as CalendarData} timestamp={timestamp} />;
+    case 'todoist':
+      return <TodoistDetail data={data as TodoistData} timestamp={timestamp} />;
     default:
       return (
         <div className="text-sm text-muted-foreground">
